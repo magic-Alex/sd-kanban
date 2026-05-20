@@ -105,13 +105,17 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional
     public void removeMember(Long projectId, Long userId, Long currentUserId) {
-        requireOwner(projectId, currentUserId);
-        Project project = requireProject(projectId);
+        Project project = requireProjectForUpdate(projectId);
+        requireOwner(project, currentUserId);
         if (project.getOwnerId().equals(userId)) {
             throw BusinessException.badRequest("CANNOT_REMOVE_PROJECT_OWNER", "Project owner cannot be removed");
         }
 
-        ProjectMember member = requireMember(projectId, userId);
+        ProjectMember member = projectMemberRepository.findById(new ProjectMemberId(projectId, userId))
+            .orElseThrow(() -> BusinessException.forbidden(
+                "PROJECT_MEMBER_REQUIRED",
+                "Project membership is required"
+            ));
         projectMemberRepository.delete(member);
     }
 
@@ -157,7 +161,15 @@ public class ProjectServiceImpl implements ProjectService {
     @Transactional(readOnly = true)
     public ProjectMember requireOwner(Long projectId, Long userId) {
         Project project = requireProject(projectId);
-        ProjectMember member = requireMember(projectId, userId);
+        return requireOwner(project, userId);
+    }
+
+    private ProjectMember requireOwner(Project project, Long userId) {
+        ProjectMember member = projectMemberRepository.findById(new ProjectMemberId(project.getId(), userId))
+            .orElseThrow(() -> BusinessException.forbidden(
+                "PROJECT_MEMBER_REQUIRED",
+                "Project membership is required"
+            ));
         if (!project.getOwnerId().equals(userId) || !ProjectMember.ROLE_OWNER.equals(member.getRole())) {
             throw BusinessException.forbidden("PROJECT_OWNER_REQUIRED", "Project owner permission is required");
         }

@@ -10,8 +10,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -33,6 +40,9 @@ class ProjectControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void deleteData() {
@@ -279,6 +289,81 @@ class ProjectControllerTest {
         );
         assertThat(memberCount).isZero();
         assertThat(ownerRoleUserIds(projectId)).containsExactly(owner.id());
+    }
+
+    @Test
+    void oldOwnerCannotRemoveTransferTargetWhileOwnerTransferIsCommitting() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch transferReady = new CountDownLatch(1);
+        CountDownLatch allowTransferCommit = new CountDownLatch(1);
+        try {
+            Future<?> transfer = executor.submit(() -> new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> {
+                    jdbcTemplate.queryForObject(
+                        "SELECT id FROM projects WHERE id = ? FOR UPDATE",
+                        Long.class,
+                        projectId
+                    );
+                    jdbcTemplate.update(
+                        "UPDATE project_members SET role = 'member' WHERE project_id = ? AND user_id = ?",
+                        projectId,
+                        owner.id()
+                    );
+                    jdbcTemplate.update(
+                        "UPDATE project_members SET role = 'owner' WHERE project_id = ? AND user_id = ?",
+                        projectId,
+                        member.id()
+                    );
+                    jdbcTemplate.update(
+                        "UPDATE projects SET owner_id = ? WHERE id = ?",
+                        member.id(),
+                        projectId
+                    );
+                    transferReady.countDown();
+                    try {
+                        assertThat(allowTransferCommit.await(5, TimeUnit.SECONDS)).isTrue();
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(exception);
+                    }
+                }));
+
+            assertThat(transferReady.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> removal = executor.submit(() -> {
+                try {
+                    mockMvc.perform(delete("/api/projects/{projectId}/members/{userId}", projectId, member.id())
+                            .header("Authorization", "Bearer " + owner.token()))
+                        .andExpect(status().isForbidden())
+                        .andExpect(jsonPath("$.success").value(false))
+                        .andExpect(jsonPath("$.code").value("PROJECT_OWNER_REQUIRED"));
+                } catch (Exception exception) {
+                    throw new AssertionError(exception);
+                }
+            });
+
+            Thread.sleep(250);
+            allowTransferCommit.countDown();
+            transfer.get(5, TimeUnit.SECONDS);
+            removal.get(5, TimeUnit.SECONDS);
+        } finally {
+            allowTransferCommit.countDown();
+            executor.shutdownNow();
+        }
+
+        Long canonicalOwnerId = jdbcTemplate.queryForObject(
+            "SELECT owner_id FROM projects WHERE id = ?",
+            Long.class,
+            projectId
+        );
+        assertThat(canonicalOwnerId).isEqualTo(member.id());
+        assertThat(ownerRoleUserIds(projectId)).containsExactly(member.id());
+        assertThat(roleOf(projectId, member.id())).isEqualTo("owner");
     }
 
     @Test
