@@ -78,6 +78,12 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void canonicalColumnsDoNotKeepLegacyRequiredBlockers() {
+        assertNoColumns("users", "username", "display_name");
+        assertNoColumns("task_activities", "activity_type");
+    }
+
+    @Test
     void schemaHasRequiredForeignKeysAndProjectScopedIndexes() {
         assertForeignKeys(Map.ofEntries(
             Map.entry("fk_projects_owner_id", "projects.owner_id->users.id"),
@@ -106,10 +112,8 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void projectScopedReferencesRejectCrossProjectColumnsAndTags() {
-        jdbcTemplate.update("INSERT INTO users (id, account, username, nickname, display_name, password_hash, status) VALUES (1001, 'owner1', 'owner1', 'Owner 1', 'Owner 1', 'hash', 'ACTIVE')");
-        jdbcTemplate.update("INSERT INTO users (id, account, username, nickname, display_name, password_hash, status) VALUES (1002, 'owner2', 'owner2', 'Owner 2', 'Owner 2', 'hash', 'ACTIVE')");
-        jdbcTemplate.update("INSERT INTO projects (id, owner_id, creator_id, name, status) VALUES (2001, 1001, 1001, 'Project 1', 'ACTIVE')");
-        jdbcTemplate.update("INSERT INTO projects (id, owner_id, creator_id, name, status) VALUES (2002, 1002, 1002, 'Project 2', 'ACTIVE')");
+        seedCanonicalProject(1001, 2001, "owner1", "Project 1");
+        seedCanonicalProject(1002, 2002, "owner2", "Project 2");
         jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3001, 2001, 'Todo', '#4f46e5', 1, false)");
         jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3002, 2002, 'Todo', '#0891b2', 1, false)");
         jdbcTemplate.update("INSERT INTO task_tags (id, project_id, name, color) VALUES (4001, 2001, 'Backend', '#16a34a')");
@@ -123,6 +127,49 @@ class SchemaMigrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
             "INSERT INTO task_tag_links (task_id, tag_id, project_id) VALUES (5001, 4002, 2001)"
         )).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @Transactional
+    void canonicalUserAndActivityInsertsDoNotNeedLegacyColumns() {
+        seedCanonicalProject(1101, 2101, "canonical-owner", "Canonical Project");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3101, 2101, 'Todo', '#2563eb', 1, false)");
+        jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5101, 2101, 3101, 1101, 'Canonical task')");
+
+        int inserted = jdbcTemplate.update(
+            """
+                INSERT INTO task_activities (
+                    task_id, project_id, actor_id, action_type, field_name, old_value, new_value
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+            5101,
+            2101,
+            1101,
+            "TASK_CREATED",
+            "status",
+            null,
+            "OPEN"
+        );
+
+        assertThat(inserted).isEqualTo(1);
+    }
+
+    @Test
+    @Transactional
+    void sprintScopeRejectsCrossProjectAssignmentAndRestrictsReferencedSprintDeletion() {
+        seedCanonicalProject(1201, 2201, "sprint-owner-1", "Sprint Project 1");
+        seedCanonicalProject(1202, 2202, "sprint-owner-2", "Sprint Project 2");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3201, 2201, 'Todo', '#7c3aed', 1, false)");
+        jdbcTemplate.update("INSERT INTO sprints (id, project_id, name, status) VALUES (6201, 2201, 'Sprint 1', 'PLANNED')");
+        jdbcTemplate.update("INSERT INTO sprints (id, project_id, name, status) VALUES (6202, 2202, 'Sprint 2', 'PLANNED')");
+        jdbcTemplate.update("INSERT INTO tasks (id, project_id, sprint_id, column_id, creator_id, title) VALUES (5201, 2201, 6201, 3201, 1201, 'Sprint task')");
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "INSERT INTO tasks (id, project_id, sprint_id, column_id, creator_id, title) VALUES (5202, 2201, 6202, 3201, 1201, 'Wrong sprint')"
+        )).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("DELETE FROM sprints WHERE id = 6201"))
+            .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private void assertColumns(String tableName, String... expectedColumns) {
@@ -140,6 +187,42 @@ class SchemaMigrationTest {
         assertThat(actualColumns)
             .as("columns for %s", tableName)
             .contains(expectedColumns);
+    }
+
+    private void assertNoColumns(String tableName, String... unexpectedColumns) {
+        List<String> actualColumns = jdbcTemplate.queryForList(
+            """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = ?
+                """,
+            String.class,
+            tableName
+        );
+
+        assertThat(actualColumns)
+            .as("columns for %s", tableName)
+            .doesNotContain(unexpectedColumns);
+    }
+
+    private void seedCanonicalProject(long userId, long projectId, String account, String projectName) {
+        jdbcTemplate.update(
+            "INSERT INTO users (id, account, nickname, password_hash, status) VALUES (?, ?, ?, ?, ?)",
+            userId,
+            account,
+            account,
+            "hash",
+            "ACTIVE"
+        );
+        jdbcTemplate.update(
+            "INSERT INTO projects (id, owner_id, creator_id, name, status) VALUES (?, ?, ?, ?, ?)",
+            projectId,
+            userId,
+            userId,
+            projectName,
+            "ACTIVE"
+        );
     }
 
     private void assertForeignKeys(Map<String, String> expectedForeignKeys) {
