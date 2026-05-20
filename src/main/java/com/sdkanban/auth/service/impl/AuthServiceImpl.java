@@ -34,17 +34,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        String email = normalizeEmail(request.email());
         if (userRepository.existsByAccount(request.account())) {
             throw BusinessException.conflict("ACCOUNT_EXISTS", "Account already exists");
         }
-        if (StringUtils.hasText(request.email()) && userRepository.existsByEmail(request.email())) {
+        if (email != null && userRepository.existsByEmail(email)) {
             throw BusinessException.conflict("EMAIL_EXISTS", "Email already exists");
         }
 
         User user = userRepository.save(new User(
             request.account(),
             request.nickname(),
-            request.email(),
+            email,
             passwordEncoder.encode(request.password())
         ));
 
@@ -64,5 +65,12 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthResponse responseFor(User user) {
         return new AuthResponse(jwtService.createToken(user), UserSummary.from(user));
+    }
+
+    private String normalizeEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return null;
+        }
+        return email.trim();
     }
 }

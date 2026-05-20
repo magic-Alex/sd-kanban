@@ -94,6 +94,24 @@ class AuthControllerTest {
     }
 
     @Test
+    void registerTreatsBlankEmailAsOptional() throws Exception {
+        register("blank1", "Blank One", "", "secret123");
+        register("blank2", "Blank Two", "", "secret123");
+
+        Integer blankEmailCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM users WHERE email = ''",
+            Integer.class
+        );
+        Integer nullEmailCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM users WHERE email IS NULL",
+            Integer.class
+        );
+
+        assertThat(blankEmailCount).isZero();
+        assertThat(nullEmailCount).isEqualTo(2);
+    }
+
+    @Test
     void loginReturnsTokenForValidPassword() throws Exception {
         register("bob", "Bob", "bob@example.com", "secret123");
 
