@@ -1,0 +1,311 @@
+package com.sdkanban.task;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class TaskControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void deleteData() {
+        jdbcTemplate.update("DELETE FROM task_activities");
+        jdbcTemplate.update("DELETE FROM task_comments");
+        jdbcTemplate.update("DELETE FROM task_tag_links");
+        jdbcTemplate.update("DELETE FROM tasks");
+        jdbcTemplate.update("DELETE FROM task_tags");
+        jdbcTemplate.update("DELETE FROM board_columns");
+        jdbcTemplate.update("DELETE FROM sprints");
+        jdbcTemplate.update("DELETE FROM project_members");
+        jdbcTemplate.update("DELETE FROM projects");
+        jdbcTemplate.update("DELETE FROM users");
+    }
+
+    @Test
+    void projectMemberCanCreateTaskWithPlanningFields() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long sprintId = createSprint(fixture.member().token(), fixture.projectId(), "Sprint 1");
+        long columnId = firstColumnId(fixture.projectId());
+        long tagId = createTag(fixture.owner().token(), fixture.projectId(), "Backend", "#16a34a");
+
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Implement task API",
+                      "description": "Create the collaboration endpoints",
+                      "taskType": "STORY",
+                      "priority": "HIGH",
+                      "storyPoints": 5,
+                      "estimatedHours": 12.5,
+                      "acceptanceCriteria": "API persists all planning fields",
+                      "assigneeId": %d,
+                      "sprintId": %d,
+                      "columnId": %d,
+                      "tagIds": [%d]
+                    }
+                    """.formatted(fixture.member().id(), sprintId, columnId, tagId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.title").value("Implement task API"))
+            .andExpect(jsonPath("$.data.assignee.id").value(fixture.member().id()))
+            .andExpect(jsonPath("$.data.sprintId").value(sprintId))
+            .andExpect(jsonPath("$.data.columnId").value(columnId))
+            .andExpect(jsonPath("$.data.tags[0].name").value("Backend"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        long taskId = objectMapper.readTree(response).path("data").path("id").asLong();
+        assertThat(jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*) FROM tasks
+            WHERE id = ? AND project_id = ? AND creator_id = ? AND assignee_id = ?
+              AND sprint_id = ? AND column_id = ? AND task_type = 'STORY'
+              AND priority = 'HIGH' AND story_points = 5 AND estimated_hours = 12.5
+              AND acceptance_criteria = 'API persists all planning fields'
+            """,
+            Integer.class,
+            taskId,
+            fixture.projectId(),
+            fixture.member().id(),
+            fixture.member().id(),
+            sprintId,
+            columnId
+        )).isEqualTo(1);
+        assertThat(tagNamesForTask(taskId)).containsExactly("Backend");
+    }
+
+    @Test
+    void taskAssigneeMustBeProjectMember() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        RegisteredUser outsider = register("outsider", "Outsider");
+        long columnId = firstColumnId(fixture.projectId());
+
+        mockMvc.perform(post("/api/projects/{projectId}/tasks", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Bad assignment",
+                      "columnId": %d,
+                      "assigneeId": %d
+                    }
+                    """.formatted(columnId, outsider.id())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_ASSIGNEE_NOT_MEMBER"));
+    }
+
+    @Test
+    void tagsAreProjectScopedAndCanBeLinkedToTasks() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long tagId = createTag(fixture.owner().token(), fixture.projectId(), "UI", "#2563eb");
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Wire board UI");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/tags", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tagIds": [%d]
+                    }
+                    """.formatted(tagId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.tags[0].name").value("UI"));
+
+        assertThat(tagNamesForTask(taskId)).containsExactly("UI");
+    }
+
+    @Test
+    void nonMemberCannotReadOrUpdateTask() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        RegisteredUser outsider = register("outsider", "Outsider");
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Private task");
+
+        mockMvc.perform(get("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + outsider.token()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + outsider.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Not allowed"
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+    }
+
+    private Fixture fixtureWithOwnerAndMember() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        addMember(owner.token(), projectId, member.id());
+        return new Fixture(owner, member, projectId);
+    }
+
+    private long createTask(String token, long projectId, long columnId, String title) throws Exception {
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "%s",
+                      "columnId": %d
+                    }
+                    """.formatted(title, columnId)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private long createTag(String token, long projectId, String name, String color) throws Exception {
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tags", projectId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "%s",
+                      "color": "%s"
+                    }
+                    """.formatted(name, color)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private List<String> tagNamesForTask(long taskId) {
+        return jdbcTemplate.query(
+            """
+            SELECT tag.name
+            FROM task_tags tag
+            JOIN task_tag_links link ON link.tag_id = tag.id AND link.project_id = tag.project_id
+            WHERE link.task_id = ?
+            ORDER BY tag.name
+            """,
+            (rs, rowNum) -> rs.getString("name"),
+            taskId
+        );
+    }
+
+    private long firstColumnId(long projectId) {
+        return jdbcTemplate.queryForObject(
+            "SELECT id FROM board_columns WHERE project_id = ? ORDER BY sort_order LIMIT 1",
+            Long.class,
+            projectId
+        );
+    }
+
+    private long createSprint(String token, long projectId, String name) throws Exception {
+        String response = mockMvc.perform(post("/api/projects/{projectId}/sprints", projectId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "%s",
+                      "startDate": "2026-05-21",
+                      "endDate": "2026-06-04"
+                    }
+                    """.formatted(name)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private long createProject(String token, String name, String description) throws Exception {
+        String response = mockMvc.perform(post("/api/projects")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "%s",
+                      "description": "%s"
+                    }
+                    """.formatted(name, description)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private void addMember(String ownerToken, long projectId, long userId) throws Exception {
+        mockMvc.perform(post("/api/projects/{projectId}/members", projectId)
+                .header("Authorization", "Bearer " + ownerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": %d
+                    }
+                    """.formatted(userId)))
+            .andExpect(status().isOk());
+    }
+
+    private RegisteredUser register(String account, String nickname) throws Exception {
+        String response = mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "account": "%s",
+                      "nickname": "%s",
+                      "email": "%s@example.com",
+                      "password": "secret123"
+                    }
+                    """.formatted(account, nickname, account)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        long userId = root.path("data").path("user").path("id").asLong();
+        String token = root.path("data").path("token").asText();
+        return new RegisteredUser(userId, token);
+    }
+
+    private record RegisteredUser(long id, String token) {
+    }
+
+    private record Fixture(RegisteredUser owner, RegisteredUser member, long projectId) {
+    }
+}
