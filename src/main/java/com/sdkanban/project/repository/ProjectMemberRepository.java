@@ -11,5 +11,7 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Pr
 
     List<ProjectMember> findByIdProjectIdOrderByCreatedAtAsc(Long projectId);
 
+    List<ProjectMember> findByIdProjectIdAndRole(Long projectId, String role);
+
     long countByIdProjectId(Long projectId);
 }

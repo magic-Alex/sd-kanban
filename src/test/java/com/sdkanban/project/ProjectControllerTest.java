@@ -195,6 +195,113 @@ class ProjectControllerTest {
     }
 
     @Test
+    void ownerTransferCleansUpExtraOwnerRolesAndMatchesCanonicalOwner() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        RegisteredUser extraOwner = register("extra-owner", "Extra Owner");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+        addMember(owner.token(), projectId, extraOwner.id());
+        jdbcTemplate.update(
+            "UPDATE project_members SET role = 'owner' WHERE project_id = ? AND user_id = ?",
+            projectId,
+            extraOwner.id()
+        );
+
+        mockMvc.perform(patch("/api/projects/{projectId}/owner", projectId)
+                .header("Authorization", "Bearer " + owner.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": %d
+                    }
+                    """.formatted(member.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.owner.id").value(member.id()));
+
+        Long canonicalOwnerId = jdbcTemplate.queryForObject(
+            "SELECT owner_id FROM projects WHERE id = ?",
+            Long.class,
+            projectId
+        );
+        assertThat(canonicalOwnerId).isEqualTo(member.id());
+        assertThat(ownerRoleUserIds(projectId)).containsExactly(member.id());
+    }
+
+    @Test
+    void ownerTransferToNonMemberIsRejectedWithoutChangingRoles() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        RegisteredUser outsider = register("outsider", "Outsider");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+
+        mockMvc.perform(patch("/api/projects/{projectId}/owner", projectId)
+                .header("Authorization", "Bearer " + owner.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": %d
+                    }
+                    """.formatted(outsider.id())))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+
+        Long canonicalOwnerId = jdbcTemplate.queryForObject(
+            "SELECT owner_id FROM projects WHERE id = ?",
+            Long.class,
+            projectId
+        );
+        assertThat(canonicalOwnerId).isEqualTo(owner.id());
+        assertThat(ownerRoleUserIds(projectId)).containsExactly(owner.id());
+        assertThat(roleOf(projectId, member.id())).isEqualTo("member");
+    }
+
+    @Test
+    void ownerCanRemoveProjectMember() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+
+        mockMvc.perform(delete("/api/projects/{projectId}/members/{userId}", projectId, member.id())
+                .header("Authorization", "Bearer " + owner.token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        Integer memberCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM project_members WHERE project_id = ? AND user_id = ?",
+            Integer.class,
+            projectId,
+            member.id()
+        );
+        assertThat(memberCount).isZero();
+        assertThat(ownerRoleUserIds(projectId)).containsExactly(owner.id());
+    }
+
+    @Test
+    void addingDuplicateProjectMemberReturnsConflict() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+
+        mockMvc.perform(post("/api/projects/{projectId}/members", projectId)
+                .header("Authorization", "Bearer " + owner.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": %d
+                    }
+                    """.formatted(member.id())))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_EXISTS"));
+    }
+
+    @Test
     void ownerCannotRemoveCurrentOwnerFromMembers() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         long projectId = createProject(owner.token(), "Team Board", "Shared work");
@@ -234,6 +341,23 @@ class ProjectControllerTest {
                     }
                     """.formatted(userId)))
             .andExpect(status().isOk());
+    }
+
+    private List<Long> ownerRoleUserIds(long projectId) {
+        return jdbcTemplate.query(
+            "SELECT user_id FROM project_members WHERE project_id = ? AND role = 'owner' ORDER BY user_id",
+            (rs, rowNum) -> rs.getLong("user_id"),
+            projectId
+        );
+    }
+
+    private String roleOf(long projectId, long userId) {
+        return jdbcTemplate.queryForObject(
+            "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+            String.class,
+            projectId,
+            userId
+        );
     }
 
     private RegisteredUser register(String account, String nickname) throws Exception {

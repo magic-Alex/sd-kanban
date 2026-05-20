@@ -17,6 +17,7 @@ import com.sdkanban.user.dto.UserSummary;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -90,9 +91,14 @@ public class ProjectServiceImpl implements ProjectService {
             throw BusinessException.conflict("PROJECT_MEMBER_EXISTS", "User is already a project member");
         }
 
-        ProjectMember member = projectMemberRepository.save(
-            new ProjectMember(projectId, user.getId(), ProjectMember.ROLE_MEMBER)
-        );
+        ProjectMember member;
+        try {
+            member = projectMemberRepository.saveAndFlush(
+                new ProjectMember(projectId, user.getId(), ProjectMember.ROLE_MEMBER)
+            );
+        } catch (DataIntegrityViolationException exception) {
+            throw BusinessException.conflict("PROJECT_MEMBER_EXISTS", "User is already a project member");
+        }
         return toMemberResponse(member);
     }
 
@@ -112,11 +118,24 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional
     public ProjectResponse transferOwner(Long projectId, TransferProjectOwnerRequest request, Long currentUserId) {
-        ProjectMember oldOwnerMember = requireOwner(projectId, currentUserId);
-        ProjectMember newOwnerMember = requireMember(projectId, request.userId());
-        Project project = requireProject(projectId);
+        Project project = requireProjectForUpdate(projectId);
+        ProjectMember currentOwnerMember = projectMemberRepository.findById(new ProjectMemberId(projectId, currentUserId))
+            .orElseThrow(() -> BusinessException.forbidden(
+                "PROJECT_MEMBER_REQUIRED",
+                "Project membership is required"
+            ));
+        if (!project.getOwnerId().equals(currentUserId)
+            || !ProjectMember.ROLE_OWNER.equals(currentOwnerMember.getRole())) {
+            throw BusinessException.forbidden("PROJECT_OWNER_REQUIRED", "Project owner permission is required");
+        }
+        ProjectMember newOwnerMember = projectMemberRepository.findById(new ProjectMemberId(projectId, request.userId()))
+            .orElseThrow(() -> BusinessException.forbidden(
+                "PROJECT_MEMBER_REQUIRED",
+                "Project membership is required"
+            ));
 
-        oldOwnerMember.changeRole(ProjectMember.ROLE_MEMBER);
+        projectMemberRepository.findByIdProjectIdAndRole(projectId, ProjectMember.ROLE_OWNER)
+            .forEach(ownerMember -> ownerMember.changeRole(ProjectMember.ROLE_MEMBER));
         newOwnerMember.changeRole(ProjectMember.ROLE_OWNER);
         project.transferOwner(request.userId());
 
@@ -147,6 +166,11 @@ public class ProjectServiceImpl implements ProjectService {
 
     private Project requireProject(Long projectId) {
         return projectRepository.findById(projectId)
+            .orElseThrow(() -> BusinessException.notFound("PROJECT_NOT_FOUND", "Project not found"));
+    }
+
+    private Project requireProjectForUpdate(Long projectId) {
+        return projectRepository.findByIdForUpdate(projectId)
             .orElseThrow(() -> BusinessException.notFound("PROJECT_NOT_FOUND", "Project not found"));
     }
 
