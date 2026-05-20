@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,15 @@ class AuthControllerTest {
 
     @BeforeEach
     void deleteUsers() {
+        jdbcTemplate.update("DELETE FROM task_activities");
+        jdbcTemplate.update("DELETE FROM task_comments");
+        jdbcTemplate.update("DELETE FROM task_tag_links");
+        jdbcTemplate.update("DELETE FROM tasks");
+        jdbcTemplate.update("DELETE FROM task_tags");
+        jdbcTemplate.update("DELETE FROM board_columns");
+        jdbcTemplate.update("DELETE FROM sprints");
+        jdbcTemplate.update("DELETE FROM project_members");
+        jdbcTemplate.update("DELETE FROM projects");
         jdbcTemplate.update("DELETE FROM users");
     }
 
@@ -61,6 +71,26 @@ class AuthControllerTest {
             "alice"
         );
         assertThat(userCount).isEqualTo(1);
+    }
+
+    @Test
+    void registerRejectsDuplicateEmailWithConflict() throws Exception {
+        register("alice", "Alice", "shared@example.com", "secret123");
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "account": "alice2",
+                      "nickname": "Alice Two",
+                      "email": "shared@example.com",
+                      "password": "secret123"
+                    }
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("EMAIL_EXISTS"));
     }
 
     @Test
@@ -100,6 +130,25 @@ class AuthControllerTest {
     }
 
     @Test
+    void loginRejectsInactiveUserWithUnauthorized() throws Exception {
+        register("erin", "Erin", "erin@example.com", "secret123");
+        jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE account = ?", "erin");
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "account": "erin",
+                      "password": "secret123"
+                    }
+                    """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void meReturnsCurrentUserWhenAuthorizationHeaderIsPresent() throws Exception {
         String token = register("dana", "Dana", "dana@example.com", "secret123");
 
@@ -110,6 +159,16 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.account").value("dana"))
             .andExpect(jsonPath("$.data.nickname").value("Dana"))
             .andExpect(jsonPath("$.data.email").value("dana@example.com"));
+    }
+
+    @Test
+    @WithMockUser(username = "spring-user")
+    void meRejectsAuthenticatedPrincipalThatIsNotApplicationUser() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
     @Test

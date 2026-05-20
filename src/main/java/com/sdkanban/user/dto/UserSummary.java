@@ -1,4 +1,6 @@
-package com.sdkanban.user;
+package com.sdkanban.user.dto;
+
+import com.sdkanban.user.entity.User;
 
 public record UserSummary(
     Long id,

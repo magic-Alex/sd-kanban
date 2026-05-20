@@ -1,10 +1,12 @@
 package com.sdkanban;
 
+import com.sdkanban.user.repository.UserRepository;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.ApplicationContext;
 
 import javax.sql.DataSource;
@@ -18,6 +20,9 @@ import javax.sql.DataSource;
 class SdKanbanApplicationTests {
     @Autowired
     private ApplicationContext applicationContext;
+
+    @MockBean
+    private UserRepository userRepository;
 
     @Test
     void contextLoads() {

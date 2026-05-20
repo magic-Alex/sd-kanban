@@ -1,6 +1,6 @@
 package com.sdkanban.common;
 
-import com.sdkanban.user.User;
+import com.sdkanban.user.entity.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 

@@ -1,4 +1,4 @@
-package com.sdkanban.user;
+package com.sdkanban.user.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

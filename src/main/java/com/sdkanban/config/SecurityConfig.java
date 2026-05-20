@@ -2,8 +2,8 @@ package com.sdkanban.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sdkanban.common.ApiResponse;
-import com.sdkanban.user.User;
-import com.sdkanban.user.UserRepository;
+import com.sdkanban.user.entity.User;
+import com.sdkanban.user.repository.UserRepository;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

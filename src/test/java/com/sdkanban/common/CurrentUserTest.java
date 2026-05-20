@@ -1,6 +1,6 @@
 package com.sdkanban.common;
 
-import com.sdkanban.user.User;
+import com.sdkanban.user.entity.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

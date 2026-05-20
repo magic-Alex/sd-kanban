@@ -1,6 +1,6 @@
 package com.sdkanban.config;
 
-import com.sdkanban.user.User;
+import com.sdkanban.user.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
