@@ -7,6 +7,7 @@ import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
 import com.sdkanban.task.dto.UpdateTaskRequest;
+import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
 
 public interface TaskService {
@@ -15,6 +16,8 @@ public interface TaskService {
     TaskResponse detail(Long taskId, Long currentUserId);
 
     TaskResponse update(Long taskId, UpdateTaskRequest request, Long currentUserId);
+
+    TaskResponse updatePosition(Long taskId, UpdateTaskPositionRequest request, Long currentUserId);
 
     TaskTagResponse createTag(Long projectId, CreateTaskTagRequest request, Long currentUserId);
 

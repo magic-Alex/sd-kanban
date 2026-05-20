@@ -8,6 +8,7 @@ import com.sdkanban.task.dto.CreateTaskTagRequest;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
+import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
 import com.sdkanban.task.service.TaskService;
@@ -58,6 +59,15 @@ public class TaskController {
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(taskService.update(taskId, request, currentUserId(user)));
+    }
+
+    @PatchMapping("/tasks/{taskId}/position")
+    ApiResponse<TaskResponse> updatePosition(
+        @PathVariable Long taskId,
+        @Valid @RequestBody UpdateTaskPositionRequest request,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.updatePosition(taskId, request, currentUserId(user)));
     }
 
     @PostMapping("/projects/{projectId}/tags")

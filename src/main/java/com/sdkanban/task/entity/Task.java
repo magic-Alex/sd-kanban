@@ -233,4 +233,8 @@ public class Task {
     public void changeColumnId(Long columnId) {
         this.columnId = columnId;
     }
+
+    public void changeSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
+    }
 }

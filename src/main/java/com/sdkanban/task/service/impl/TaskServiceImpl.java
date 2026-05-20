@@ -13,6 +13,7 @@ import com.sdkanban.task.dto.CreateTaskTagRequest;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
+import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
 import com.sdkanban.task.entity.Task;
@@ -164,6 +165,17 @@ public class TaskServiceImpl implements TaskService {
             change(task, currentUserId, "columnId", task.getColumnId(), request.columnId(), task::changeColumnId);
         }
 
+        return toTaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updatePosition(Long taskId, UpdateTaskPositionRequest request, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        validateColumn(task.getProjectId(), request.columnId());
+        change(task, currentUserId, "columnId", task.getColumnId(), request.columnId(), task::changeColumnId);
+        change(task, currentUserId, "sortOrder", task.getSortOrder(), request.sortOrder(), task::changeSortOrder);
         return toTaskResponse(task);
     }
 
