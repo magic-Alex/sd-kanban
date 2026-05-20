@@ -1,37 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
+import MyTaskBoardView from '../views/MyTaskBoardView.vue'
+import ProjectBoardView from '../views/ProjectBoardView.vue'
 import ProjectDetailView from '../views/ProjectDetailView.vue'
 import ProjectListView from '../views/ProjectListView.vue'
 import { useAuthStore } from '../stores/auth'
-
-const MyTasksView = {
-  template: `
-    <main class="page-surface">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">My Tasks</p>
-          <h1>我的任务</h1>
-        </div>
-      </header>
-      <p class="muted">暂无任务数据</p>
-    </main>
-  `,
-}
-
-const ProjectBoardView = {
-  template: `
-    <main class="page-surface">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">Board</p>
-          <h1>项目看板</h1>
-        </div>
-      </header>
-      <p class="muted">暂无看板数据</p>
-    </main>
-  `,
-}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -69,7 +43,7 @@ const router = createRouter({
     {
       path: '/my-tasks',
       name: 'my-tasks',
-      component: MyTasksView,
+      component: MyTaskBoardView,
       meta: { requiresAuth: true },
     },
   ],
