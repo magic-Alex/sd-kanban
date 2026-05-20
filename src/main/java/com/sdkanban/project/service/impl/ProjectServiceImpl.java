@@ -1,5 +1,7 @@
 package com.sdkanban.project.service.impl;
 
+import com.sdkanban.board.entity.BoardColumn;
+import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
 import com.sdkanban.project.dto.AddProjectMemberRequest;
 import com.sdkanban.project.dto.CreateProjectRequest;
@@ -30,15 +32,18 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final BoardColumnRepository boardColumnRepository;
 
     public ProjectServiceImpl(
         ProjectRepository projectRepository,
         ProjectMemberRepository projectMemberRepository,
-        UserRepository userRepository
+        UserRepository userRepository,
+        BoardColumnRepository boardColumnRepository
     ) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
+        this.boardColumnRepository = boardColumnRepository;
     }
 
     @Override
@@ -52,6 +57,7 @@ public class ProjectServiceImpl implements ProjectService {
             normalizeDescription(request.description())
         ));
         projectMemberRepository.save(new ProjectMember(project.getId(), creator.getId(), ProjectMember.ROLE_OWNER));
+        initializeDefaultColumns(project.getId());
 
         return toProjectResponse(project);
     }
@@ -189,6 +195,16 @@ public class ProjectServiceImpl implements ProjectService {
     private User requireUser(Long userId) {
         return userRepository.findById(userId)
             .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "User not found"));
+    }
+
+    private void initializeDefaultColumns(Long projectId) {
+        boardColumnRepository.saveAll(List.of(
+            new BoardColumn(projectId, "Backlog", "#64748b", 0, null, false),
+            new BoardColumn(projectId, "Ready", "#0ea5e9", 1, null, false),
+            new BoardColumn(projectId, "In Progress", "#f59e0b", 2, null, false),
+            new BoardColumn(projectId, "Testing", "#8b5cf6", 3, null, false),
+            new BoardColumn(projectId, "Done", "#22c55e", 4, null, true)
+        ));
     }
 
     private ProjectResponse toProjectResponse(Project project) {
