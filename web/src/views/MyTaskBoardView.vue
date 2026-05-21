@@ -58,6 +58,7 @@ function reload() {
       :comments="tasks.comments"
       :activities="tasks.activities"
       @close="tasks.closeDrawer"
+      @add-comment="tasks.addComment"
     />
   </main>
 </template>

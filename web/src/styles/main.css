@@ -507,6 +507,11 @@ small,
   gap: 4px;
 }
 
+.comment-form {
+  display: grid;
+  gap: 10px;
+}
+
 @media (max-width: 900px) {
   .workspace-shell {
     grid-template-columns: 1fr;

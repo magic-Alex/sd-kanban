@@ -56,6 +56,7 @@ function moveTask(taskId: number, columnId: number, sortOrder: number) {
       :comments="tasks.comments"
       :activities="tasks.activities"
       @close="tasks.closeDrawer"
+      @add-comment="tasks.addComment"
     />
   </main>
 </template>

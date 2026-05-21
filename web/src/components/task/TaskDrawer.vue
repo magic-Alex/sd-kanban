@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { TaskActivity, TaskComment, TaskResponse } from '../../api/tasks'
 
 defineProps<{
@@ -10,7 +11,19 @@ defineProps<{
 
 const emit = defineEmits<{
   close: []
+  addComment: [content: string]
 }>()
+
+const comment = ref('')
+
+function submitComment() {
+  const content = comment.value.trim()
+  if (!content) {
+    return
+  }
+  emit('addComment', content)
+  comment.value = ''
+}
 </script>
 
 <template>
@@ -42,6 +55,13 @@ const emit = defineEmits<{
 
           <section class="drawer-section">
             <h2>评论</h2>
+            <form class="comment-form" @submit.prevent="submitComment">
+              <label>
+                新增评论
+                <textarea v-model="comment" rows="3" />
+              </label>
+              <button class="primary-button" type="submit">添加评论</button>
+            </form>
             <ul class="drawer-list">
               <li v-for="comment in comments" :key="comment.id">
                 <strong>{{ comment.author.nickname }}</strong>

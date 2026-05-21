@@ -49,3 +49,13 @@ The Maven package phase runs the Vue build and copies `web/dist` into the Spring
 ```
 
 The packaged jar is created under `target/`.
+
+## End-To-End Tests
+
+Playwright E2E tests use the frontend at `http://localhost:8102` and require the backend to be running at `http://localhost:8101`.
+
+```powershell
+.\scripts\dev-backend.ps1
+cd web
+npm run test:e2e
+```
