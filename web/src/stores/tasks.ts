@@ -27,6 +27,8 @@ export const useTasksStore = defineStore('tasks', {
       this.drawerOpen = true
       this.loading = true
       this.error = null
+      this.actionLoading = false
+      this.actionError = null
       try {
         this.activeTask = await fetchTask(taskId)
         this.comments = []
@@ -41,6 +43,9 @@ export const useTasksStore = defineStore('tasks', {
     closeDrawer() {
       this.drawerOpen = false
     },
+    isCurrentActionTask(taskId: number) {
+      return this.drawerOpen && this.activeTask?.id === taskId
+    },
     async saveTask(update: UpdateTaskRequest) {
       if (!this.activeTask) {
         return
@@ -50,50 +55,63 @@ export const useTasksStore = defineStore('tasks', {
       this.actionError = null
       try {
         const task = await updateTask(taskId, update)
-        if (this.drawerOpen && this.activeTask?.id === taskId) {
+        if (this.isCurrentActionTask(taskId)) {
           this.activeTask = task
-        }
-      } catch (error) {
-        if (this.drawerOpen && this.activeTask?.id === taskId) {
-          this.actionError = '任务保存失败，请重试'
-        }
-        throw error
-      } finally {
-        if (this.drawerOpen && this.activeTask?.id === taskId) {
           this.actionLoading = false
         }
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionError = '任务保存失败，请重试'
+          this.actionLoading = false
+        }
+        throw error
       }
     },
     async archiveActiveTask() {
       if (!this.activeTask) {
         return
       }
+      const taskId = this.activeTask.id
       this.actionLoading = true
       this.actionError = null
       try {
-        await archiveTask(this.activeTask.id)
-        this.closeDrawer()
+        await archiveTask(taskId)
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+          this.closeDrawer()
+        }
       } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
         this.actionError = '任务归档失败，请重试'
-        throw error
-      } finally {
         this.actionLoading = false
+        throw error
       }
     },
     async deleteActiveTask() {
       if (!this.activeTask) {
         return
       }
+      const taskId = this.activeTask.id
       this.actionLoading = true
       this.actionError = null
       try {
-        await deleteTask(this.activeTask.id)
-        this.closeDrawer()
+        await deleteTask(taskId)
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+          this.closeDrawer()
+        }
       } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
         this.actionError = '任务删除失败，请重试'
-        throw error
-      } finally {
         this.actionLoading = false
+        throw error
       }
     },
     async addComment(content: string) {

@@ -38,6 +38,16 @@ const taskB = {
   title: 'Task B',
 }
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('tasks store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -85,6 +95,121 @@ describe('tasks store', () => {
 
     expect(updateTask).toHaveBeenCalledWith(101, { title: 'Task A saved' })
     expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.actionError).toBeNull()
+    expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('clears stale action loading when opening a new task before save succeeds', async () => {
+    const update = deferred<typeof taskA>()
+    const fetch = deferred<typeof taskB>()
+    vi.mocked(updateTask).mockReturnValue(update.promise)
+    vi.mocked(fetchTask).mockReturnValue(fetch.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const savePromise = tasks.saveTask({ title: 'Task A saved' })
+    const openPromise = tasks.openTask(taskB.id)
+
+    expect(tasks.actionLoading).toBe(false)
+    expect(tasks.actionError).toBeNull()
+
+    fetch.resolve(taskB)
+    await openPromise
+    update.resolve({ ...taskA, title: 'Task A saved' })
+    await savePromise
+
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
+    expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('does not close a newer task drawer after a stale archive succeeds', async () => {
+    const archive = deferred<void>()
+    vi.mocked(archiveTask).mockReturnValue(archive.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const archivePromise = tasks.archiveActiveTask()
+    tasks.activeTask = taskB
+    tasks.drawerOpen = true
+    tasks.actionLoading = false
+
+    archive.resolve()
+    await archivePromise
+
+    expect(archiveTask).toHaveBeenCalledWith(taskA.id)
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
+    expect(tasks.actionError).toBeNull()
+    expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('does not show a stale archive failure on a newer active task', async () => {
+    const archive = deferred<void>()
+    vi.mocked(archiveTask).mockReturnValue(archive.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const archivePromise = tasks.archiveActiveTask()
+    tasks.activeTask = taskB
+    tasks.drawerOpen = true
+    tasks.actionLoading = false
+
+    const error = new Error('archive failed')
+    archive.reject(error)
+    await expect(archivePromise).rejects.toThrow(error)
+
+    expect(archiveTask).toHaveBeenCalledWith(taskA.id)
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
+    expect(tasks.actionError).toBeNull()
+    expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('does not close a newer task drawer after a stale delete succeeds', async () => {
+    const remove = deferred<void>()
+    vi.mocked(deleteTask).mockReturnValue(remove.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const deletePromise = tasks.deleteActiveTask()
+    tasks.activeTask = taskB
+    tasks.drawerOpen = true
+    tasks.actionLoading = false
+
+    remove.resolve()
+    await deletePromise
+
+    expect(deleteTask).toHaveBeenCalledWith(taskA.id)
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
+    expect(tasks.actionError).toBeNull()
+    expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('does not show a stale delete failure on a newer active task', async () => {
+    const remove = deferred<void>()
+    vi.mocked(deleteTask).mockReturnValue(remove.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const deletePromise = tasks.deleteActiveTask()
+    tasks.activeTask = taskB
+    tasks.drawerOpen = true
+    tasks.actionLoading = false
+
+    const error = new Error('delete failed')
+    remove.reject(error)
+    await expect(deletePromise).rejects.toThrow(error)
+
+    expect(deleteTask).toHaveBeenCalledWith(taskA.id)
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
     expect(tasks.actionError).toBeNull()
     expect(tasks.actionLoading).toBe(false)
   })
