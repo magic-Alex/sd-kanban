@@ -213,6 +213,29 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
+    public TaskResponse archive(Long taskId, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        if (!task.isArchived()) {
+            task.archive();
+            recordActivity(task, currentUserId, "TASK_ARCHIVED", null, null, null);
+        }
+        return toTaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long taskId, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        if (!task.isDeleted()) {
+            task.delete();
+            recordActivity(task, currentUserId, "TASK_DELETED", null, null, null);
+        }
+    }
+
+    @Override
+    @Transactional
     public TaskTagResponse createTag(Long projectId, CreateTaskTagRequest request, Long currentUserId) {
         projectService.requireMember(projectId, currentUserId);
         TaskTag tag = taskTagRepository.save(new TaskTag(

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -233,6 +234,62 @@ class TaskControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("TASK_CLEAR_FIELD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void projectMemberCanArchiveTaskAndHideItFromBoard() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Archive me");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.id").value(taskId));
+
+        mockMvc.perform(get("/api/projects/{projectId}/board", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.columns[0].tasks.length()").value(0));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT is_archived FROM tasks WHERE id = ?",
+            Boolean.class,
+            taskId
+        )).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM task_activities WHERE task_id = ? AND action_type = 'TASK_ARCHIVED'",
+            Integer.class,
+            taskId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void projectMemberCanSoftDeleteTaskAndDetailReturnsNotFound() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Delete me");
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT is_deleted FROM tasks WHERE id = ?",
+            Boolean.class,
+            taskId
+        )).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM task_activities WHERE task_id = ? AND action_type = 'TASK_DELETED'",
+            Integer.class,
+            taskId
+        )).isEqualTo(1);
     }
 
     @Test

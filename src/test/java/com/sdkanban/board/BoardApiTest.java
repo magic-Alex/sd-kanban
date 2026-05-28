@@ -79,6 +79,8 @@ class BoardApiTest {
             .andExpect(jsonPath("$.data.columns.length()").value(5))
             .andExpect(jsonPath("$.data.columns[0].name").value("Backlog"))
             .andExpect(jsonPath("$.data.columns[0].tasks[0].id").value(backlogTaskId))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].assignee.id").value(fixture.member().id()))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].assignee.nickname").value("member"))
             .andExpect(jsonPath("$.data.columns[1].tasks[0].title").value("Ready API"));
     }
 

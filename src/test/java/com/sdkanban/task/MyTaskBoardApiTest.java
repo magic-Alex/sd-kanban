@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -79,6 +80,28 @@ class MyTaskBoardApiTest {
             .andExpect(jsonPath("$.data.groups.length()").value(2))
             .andExpect(jsonPath("$.data.groups[?(@.name == 'Backlog')].tasks[0].title").value("Backlog mine"))
             .andExpect(jsonPath("$.data.groups[?(@.name == 'In Progress')].tasks[0].title").value("Progress mine"));
+    }
+
+    @Test
+    void myTaskBoardExcludesArchivedTasks() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Archived mine"
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/mine/board")
+                .queryParam("groupBy", "project")
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groups.length()").value(0));
     }
 
     private Fixture fixtureWithOwnerAndMember() throws Exception {

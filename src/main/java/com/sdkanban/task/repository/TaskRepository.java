@@ -16,6 +16,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         from Task task
         where task.projectId = :projectId
           and task.deleted = false
+          and task.archived = false
           and (:sprintId is null or task.sprintId = :sprintId)
           and (:assigneeId is null or task.assigneeId = :assigneeId)
           and (:taskType is null or task.taskType = :taskType)
@@ -36,5 +37,5 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         @Param("keyword") String keyword
     );
 
-    List<Task> findByAssigneeIdAndDeletedFalseOrderByProjectIdAscColumnIdAscSortOrderAscIdAsc(Long assigneeId);
+    List<Task> findByAssigneeIdAndDeletedFalseAndArchivedFalseOrderByProjectIdAscColumnIdAscSortOrderAscIdAsc(Long assigneeId);
 }

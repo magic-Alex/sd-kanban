@@ -19,6 +19,10 @@ public interface TaskService {
 
     TaskResponse updatePosition(Long taskId, UpdateTaskPositionRequest request, Long currentUserId);
 
+    TaskResponse archive(Long taskId, Long currentUserId);
+
+    void delete(Long taskId, Long currentUserId);
+
     TaskTagResponse createTag(Long projectId, CreateTaskTagRequest request, Long currentUserId);
 
     TaskResponse updateTags(Long taskId, UpdateTaskTagsRequest request, Long currentUserId);

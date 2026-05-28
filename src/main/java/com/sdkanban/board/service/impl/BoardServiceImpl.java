@@ -14,6 +14,9 @@ import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.project.service.ProjectService;
 import com.sdkanban.task.entity.Task;
 import com.sdkanban.task.repository.TaskRepository;
+import com.sdkanban.user.dto.UserSummary;
+import com.sdkanban.user.entity.User;
+import com.sdkanban.user.repository.UserRepository;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,17 +41,20 @@ public class BoardServiceImpl implements BoardService {
     private final ProjectRepository projectRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
 
     public BoardServiceImpl(
         ProjectService projectService,
         ProjectRepository projectRepository,
         BoardColumnRepository boardColumnRepository,
-        TaskRepository taskRepository
+        TaskRepository taskRepository,
+        UserRepository userRepository
     ) {
         this.projectService = projectService;
         this.projectRepository = projectRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.taskRepository = taskRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -70,11 +77,11 @@ public class BoardServiceImpl implements BoardService {
             normalize(priority),
             keyword(keyword)
         );
-        Map<Long, List<TaskCardResponse>> tasksByColumn = tasks.stream()
+        Map<Long, List<Task>> tasksByColumn = tasks.stream()
             .collect(Collectors.groupingBy(
                 Task::getColumnId,
                 LinkedHashMap::new,
-                Collectors.mapping(TaskCardResponse::from, Collectors.toList())
+                Collectors.toList()
             ));
 
         List<BoardColumnTasks> columns = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(projectId).stream()
@@ -84,7 +91,7 @@ public class BoardServiceImpl implements BoardService {
                 column.getColor(),
                 column.getSortOrder(),
                 column.isDone(),
-                tasksByColumn.getOrDefault(column.getId(), List.of())
+                cards(tasksByColumn.getOrDefault(column.getId(), List.of()))
             ))
             .toList();
         return new BoardResponse(projectId, columns);
@@ -96,7 +103,7 @@ public class BoardServiceImpl implements BoardService {
         String normalizedGroupBy = GROUP_BY_COLUMN.equalsIgnoreCase(String.valueOf(groupBy))
             ? GROUP_BY_COLUMN
             : GROUP_BY_PROJECT;
-        List<Task> tasks = taskRepository.findByAssigneeIdAndDeletedFalseOrderByProjectIdAscColumnIdAscSortOrderAscIdAsc(currentUserId);
+        List<Task> tasks = taskRepository.findByAssigneeIdAndDeletedFalseAndArchivedFalseOrderByProjectIdAscColumnIdAscSortOrderAscIdAsc(currentUserId);
         if (GROUP_BY_COLUMN.equals(normalizedGroupBy)) {
             return new MyTaskBoardResponse(normalizedGroupBy, groupByColumn(tasks));
         }
@@ -139,7 +146,16 @@ public class BoardServiceImpl implements BoardService {
     }
 
     private List<TaskCardResponse> cards(List<Task> tasks) {
-        return tasks.stream().map(TaskCardResponse::from).toList();
+        Map<Long, UserSummary> usersById = userRepository.findAllById(tasks.stream()
+                .map(Task::getAssigneeId)
+                .filter(Objects::nonNull)
+                .toList())
+            .stream()
+            .collect(Collectors.toMap(User::getId, UserSummary::from));
+
+        return tasks.stream()
+            .map(task -> TaskCardResponse.from(task, usersById.get(task.getAssigneeId())))
+            .toList();
     }
 
     private String normalize(String value) {

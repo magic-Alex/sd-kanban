@@ -237,4 +237,12 @@ public class Task {
     public void changeSortOrder(Integer sortOrder) {
         this.sortOrder = sortOrder;
     }
+
+    public void archive() {
+        this.archived = true;
+    }
+
+    public void delete() {
+        this.deleted = true;
+    }
 }
