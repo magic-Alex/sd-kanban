@@ -188,6 +188,37 @@ describe('TaskDrawer', () => {
     }))
   })
 
+  it('keeps a newer task edit form open when an older save resolves', async () => {
+    let resolveSave: () => void = () => undefined
+    const saveTask = vi.fn(() => new Promise<void>((resolve) => {
+      resolveSave = resolve
+    }))
+    const wrapper = mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        task: taskFixture({ id: 12, title: 'Task A' }),
+        saveTask,
+      }),
+    })
+
+    await (document.body.querySelector('.drawer-actions button') as HTMLButtonElement).click()
+    await flushPromises()
+    ;(document.body.querySelector('.task-edit-form button[type="submit"]') as HTMLButtonElement).click()
+    await flushPromises()
+
+    await wrapper.setProps({
+      task: taskFixture({ id: 34, title: 'Task B' }),
+    })
+    await (document.body.querySelector('.drawer-actions button') as HTMLButtonElement).click()
+    await flushPromises()
+
+    resolveSave()
+    await flushPromises()
+
+    expect(document.body.querySelector('.task-edit-form')).toBeTruthy()
+    expect((document.body.querySelector('.task-edit-form input') as HTMLInputElement).value).toBe('Task B')
+  })
+
   it('labels the edit form for assistive technology', async () => {
     mount(TaskDrawer, {
       attachTo: document.body,

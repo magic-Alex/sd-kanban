@@ -65,4 +65,27 @@ describe('tasks store', () => {
     expect(updateTask).toHaveBeenCalledWith(101, { title: 'Task A saved' })
     expect(tasks.activeTask).toEqual(taskB)
   })
+
+  it('does not show a stale save failure on a newer active task', async () => {
+    let rejectUpdate: (error: Error) => void = () => undefined
+    vi.mocked(updateTask).mockImplementation(() => new Promise((_, reject) => {
+      rejectUpdate = reject
+    }))
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    const savePromise = tasks.saveTask({ title: 'Task A saved' })
+    tasks.activeTask = taskB
+    tasks.actionLoading = false
+
+    const error = new Error('network unavailable')
+    rejectUpdate(error)
+    await expect(savePromise).rejects.toThrow(error)
+
+    expect(updateTask).toHaveBeenCalledWith(101, { title: 'Task A saved' })
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.actionError).toBeNull()
+    expect(tasks.actionLoading).toBe(false)
+  })
 })

@@ -124,11 +124,16 @@ async function saveEdits() {
     editError.value = '任务标题不能为空'
     return
   }
+  const taskId = props.task?.id
   try {
     await props.saveTask(buildUpdateRequest())
-    editing.value = false
+    if (props.open && props.task?.id === taskId) {
+      editing.value = false
+    }
   } catch (error) {
-    editError.value = '任务保存失败，请重试'
+    if (props.open && props.task?.id === taskId) {
+      editError.value = '任务保存失败，请重试'
+    }
   }
 }
 

@@ -54,10 +54,14 @@ export const useTasksStore = defineStore('tasks', {
           this.activeTask = task
         }
       } catch (error) {
-        this.actionError = '任务保存失败，请重试'
+        if (this.drawerOpen && this.activeTask?.id === taskId) {
+          this.actionError = '任务保存失败，请重试'
+        }
         throw error
       } finally {
-        this.actionLoading = false
+        if (this.drawerOpen && this.activeTask?.id === taskId) {
+          this.actionLoading = false
+        }
       }
     },
     async archiveActiveTask() {
