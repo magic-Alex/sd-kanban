@@ -201,6 +201,31 @@ describe('TaskDrawer', () => {
     }))
   })
 
+  it('saves numeric edits entered through number inputs', async () => {
+    const saveTask = vi.fn()
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({ saveTask }),
+    })
+
+    await drawerActionButton(0).click()
+    await flushPromises()
+
+    const numberInputs = document.body.querySelectorAll<HTMLInputElement>('.task-edit-form input[type="number"]')
+    numberInputs.item(0).value = '2'
+    numberInputs.item(0).dispatchEvent(new Event('input'))
+    numberInputs.item(1).value = '6'
+    numberInputs.item(1).dispatchEvent(new Event('input'))
+
+    ;(document.body.querySelector('.task-edit-form button[type="submit"]') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(saveTask).toHaveBeenCalledWith(expect.objectContaining({
+      storyPoints: 2,
+      estimatedHours: 6,
+    }))
+  })
+
   it('keeps a newer task edit form open when an older save resolves', async () => {
     let resolveSave: () => void = () => undefined
     const saveTask = vi.fn(() => new Promise<void>((resolve) => {
