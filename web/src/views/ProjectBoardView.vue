@@ -7,7 +7,7 @@ import TaskCreateModal from '../components/task/TaskCreateModal.vue'
 import TaskDrawer from '../components/task/TaskDrawer.vue'
 import type { BoardQuery } from '../api/board'
 import { fetchProjectMembers, type ProjectMember } from '../api/projects'
-import type { CreateTaskRequest } from '../api/tasks'
+import type { CreateTaskRequest, UpdateTaskRequest } from '../api/tasks'
 import { useBoardStore } from '../stores/board'
 import { useTasksStore } from '../stores/tasks'
 
@@ -63,6 +63,35 @@ async function submitTask(request: CreateTaskRequest) {
     submittingTask.value = false
   }
 }
+
+async function saveActiveTask(request: UpdateTaskRequest) {
+  await tasks.saveTask(request)
+  await board.refreshProjectBoard()
+}
+
+async function completeActiveTask() {
+  if (!tasks.activeTask) {
+    return
+  }
+  await board.markTaskComplete(tasks.activeTask.id)
+  await tasks.openTask(tasks.activeTask.id)
+}
+
+async function archiveActiveTask() {
+  const taskId = tasks.activeTask?.id
+  await tasks.archiveActiveTask()
+  if (taskId) {
+    board.removeTaskFromBoard(taskId)
+  }
+}
+
+async function deleteActiveTask() {
+  const taskId = tasks.activeTask?.id
+  await tasks.deleteActiveTask()
+  if (taskId) {
+    board.removeTaskFromBoard(taskId)
+  }
+}
 </script>
 
 <template>
@@ -106,7 +135,15 @@ async function submitTask(request: CreateTaskRequest) {
       :task="tasks.activeTask"
       :comments="tasks.comments"
       :activities="tasks.activities"
+      :members="members"
+      :columns="board.projectBoard?.columns ?? []"
+      :action-loading="tasks.actionLoading"
+      :action-error="tasks.actionError"
       :add-comment="tasks.addComment"
+      :save-task="saveActiveTask"
+      :complete-task="completeActiveTask"
+      :archive-task="archiveActiveTask"
+      :delete-task="deleteActiveTask"
       @close="tasks.closeDrawer"
     />
   </main>

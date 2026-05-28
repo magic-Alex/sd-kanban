@@ -1,5 +1,15 @@
 import { defineStore } from 'pinia'
-import { addTaskComment, fetchTask, updateTask, type TaskActivity, type TaskComment, type TaskResponse, type UpdateTaskRequest } from '../api/tasks'
+import {
+  addTaskComment,
+  archiveTask,
+  deleteTask,
+  fetchTask,
+  updateTask,
+  type TaskActivity,
+  type TaskComment,
+  type TaskResponse,
+  type UpdateTaskRequest,
+} from '../api/tasks'
 
 export const useTasksStore = defineStore('tasks', {
   state: () => ({
@@ -9,6 +19,8 @@ export const useTasksStore = defineStore('tasks', {
     drawerOpen: false,
     loading: false,
     error: null as string | null,
+    actionLoading: false,
+    actionError: null as string | null,
   }),
   actions: {
     async openTask(taskId: number) {
@@ -33,7 +45,48 @@ export const useTasksStore = defineStore('tasks', {
       if (!this.activeTask) {
         return
       }
-      this.activeTask = await updateTask(this.activeTask.id, update)
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        this.activeTask = await updateTask(this.activeTask.id, update)
+      } catch (error) {
+        this.actionError = '任务保存失败，请重试'
+        throw error
+      } finally {
+        this.actionLoading = false
+      }
+    },
+    async archiveActiveTask() {
+      if (!this.activeTask) {
+        return
+      }
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        await archiveTask(this.activeTask.id)
+        this.closeDrawer()
+      } catch (error) {
+        this.actionError = '任务归档失败，请重试'
+        throw error
+      } finally {
+        this.actionLoading = false
+      }
+    },
+    async deleteActiveTask() {
+      if (!this.activeTask) {
+        return
+      }
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        await deleteTask(this.activeTask.id)
+        this.closeDrawer()
+      } catch (error) {
+        this.actionError = '任务删除失败，请重试'
+        throw error
+      } finally {
+        this.actionLoading = false
+      }
     },
     async addComment(content: string) {
       if (!this.activeTask) {
