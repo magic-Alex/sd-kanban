@@ -74,6 +74,19 @@ function getByLabel(label: string) {
   return element
 }
 
+function controllableRejectingPromise() {
+  let rejectPromise: (error: Error) => void = () => undefined
+  const promise = new Promise<void>((_resolve, reject) => {
+    rejectPromise = reject
+  })
+
+  return { promise, rejectPromise }
+}
+
+function drawerActionButton(index: number) {
+  return document.body.querySelectorAll('.drawer-actions button').item(index) as HTMLButtonElement
+}
+
 describe('TaskDrawer', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -217,6 +230,61 @@ describe('TaskDrawer', () => {
 
     expect(document.body.querySelector('.task-edit-form')).toBeTruthy()
     expect((document.body.querySelector('.task-edit-form input') as HTMLInputElement).value).toBe('Task B')
+  })
+
+  it.each([
+    {
+      actionName: 'complete',
+      buttonIndex: 1,
+      propName: 'completeTask',
+      errorText: '任务完成失败，请重试',
+    },
+    {
+      actionName: 'archive',
+      buttonIndex: 2,
+      propName: 'archiveTask',
+      errorText: '任务归档失败，请重试',
+    },
+    {
+      actionName: 'delete',
+      buttonIndex: 3,
+      propName: 'deleteTask',
+      errorText: '任务删除失败，请重试',
+      confirmDelete: true,
+    },
+  ])('does not show a stale $actionName error after switching tasks', async ({
+    buttonIndex,
+    propName,
+    errorText,
+    confirmDelete,
+  }) => {
+    if (confirmDelete) {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+    }
+    const { promise, rejectPromise } = controllableRejectingPromise()
+    const action = vi.fn(() => promise)
+    const wrapper = mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        task: taskFixture({ id: 12, title: 'Task A' }),
+        [propName]: action,
+      }),
+    })
+
+    drawerActionButton(buttonIndex).click()
+    await flushPromises()
+    expect(action).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({
+      task: taskFixture({ id: 34, title: 'Task B' }),
+    })
+
+    rejectPromise(new Error('stale action failed'))
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Task B')
+    expect(document.body.querySelector('.form-error')).toBeNull()
+    expect(document.body.textContent).not.toContain(errorText)
   })
 
   it('labels the edit form for assistive technology', async () => {

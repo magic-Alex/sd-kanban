@@ -142,10 +142,13 @@ async function completeCurrentTask() {
     return
   }
   editError.value = null
+  const taskId = props.task?.id
   try {
     await props.completeTask()
   } catch (error) {
-    editError.value = '任务完成失败，请重试'
+    if (props.open && props.task?.id === taskId) {
+      editError.value = '任务完成失败，请重试'
+    }
   }
 }
 
@@ -154,10 +157,13 @@ async function archiveCurrentTask() {
     return
   }
   editError.value = null
+  const taskId = props.task?.id
   try {
     await props.archiveTask()
   } catch (error) {
-    editError.value = '任务归档失败，请重试'
+    if (props.open && props.task?.id === taskId) {
+      editError.value = '任务归档失败，请重试'
+    }
   }
 }
 
@@ -166,10 +172,13 @@ async function deleteCurrentTask() {
     return
   }
   editError.value = null
+  const taskId = props.task?.id
   try {
     await props.deleteTask()
   } catch (error) {
-    editError.value = '任务删除失败，请重试'
+    if (props.open && props.task?.id === taskId) {
+      editError.value = '任务删除失败，请重试'
+    }
   }
 }
 
