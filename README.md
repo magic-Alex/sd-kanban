@@ -53,9 +53,32 @@ The packaged jar is created under `target/`.
 ## End-To-End Tests
 
 Playwright E2E tests use the frontend at `http://localhost:8102` and require the backend to be running at `http://localhost:8101`.
+The test creates temporary account, project, task, and comment records in MySQL and removes them after the run.
+
+Terminal 1:
 
 ```powershell
 .\scripts\dev-backend.ps1
+```
+
+Terminal 2:
+
+```powershell
 cd web
+npx playwright install chromium
 npm run test:e2e
 ```
+
+Optional overrides:
+
+```powershell
+$env:E2E_BACKEND_URL='http://localhost:8101'
+$env:E2E_FRONTEND_URL='http://localhost:8102'
+$env:E2E_DB_HOST='localhost'
+$env:E2E_DB_PORT='3306'
+$env:E2E_DB_USER='root'
+$env:E2E_DB_PASSWORD='root'
+$env:E2E_DB_NAME='sd_kanban'
+```
+
+`E2E_BACKEND_URL` is also used by the Vite `/api` proxy during the Playwright run.

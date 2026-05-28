@@ -2,27 +2,37 @@
 import { ref } from 'vue'
 import type { TaskActivity, TaskComment, TaskResponse } from '../../api/tasks'
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   task: TaskResponse | null
   comments: TaskComment[]
   activities: TaskActivity[]
+  addComment: (content: string) => Promise<void> | void
 }>()
 
 const emit = defineEmits<{
   close: []
-  addComment: [content: string]
 }>()
 
 const comment = ref('')
+const commentError = ref<string | null>(null)
+const submittingComment = ref(false)
 
-function submitComment() {
+async function submitComment() {
   const content = comment.value.trim()
-  if (!content) {
+  if (!content || submittingComment.value) {
     return
   }
-  emit('addComment', content)
-  comment.value = ''
+  submittingComment.value = true
+  commentError.value = null
+  try {
+    await props.addComment(content)
+    comment.value = ''
+  } catch (error) {
+    commentError.value = '评论保存失败，请重试'
+  } finally {
+    submittingComment.value = false
+  }
 }
 </script>
 
@@ -60,7 +70,10 @@ function submitComment() {
                 新增评论
                 <textarea v-model="comment" rows="3" />
               </label>
-              <button class="primary-button" type="submit">添加评论</button>
+              <p v-if="commentError" class="form-error" aria-live="polite">{{ commentError }}</p>
+              <button class="primary-button" type="submit" :disabled="submittingComment || !comment.trim()">
+                {{ submittingComment ? '添加中...' : '添加评论' }}
+              </button>
             </form>
             <ul class="drawer-list">
               <li v-for="comment in comments" :key="comment.id">

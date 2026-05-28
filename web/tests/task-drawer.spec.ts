@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 
 describe('TaskDrawer', () => {
@@ -54,6 +54,7 @@ describe('TaskDrawer', () => {
             createdAt: '2026-05-21T10:12:00',
           },
         ],
+        addComment: async () => undefined,
       },
     })
 
@@ -63,5 +64,50 @@ describe('TaskDrawer', () => {
     expect(document.body.textContent).toContain('Please keep drag updates optimistic.')
     expect(document.body.textContent).toContain('priority')
     expect(document.body.textContent).toContain('HIGH')
+  })
+
+  it('keeps the draft and shows an error when comment save fails', async () => {
+    const wrapper = mount(TaskDrawer, {
+      attachTo: document.body,
+      props: {
+        open: true,
+        task: {
+          id: 12,
+          projectId: 7,
+          sprintId: null,
+          columnId: 1,
+          assignee: null,
+          creator: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@sd-robot.com', avatarUrl: null },
+          title: 'Build board',
+          description: null,
+          taskType: 'STORY',
+          priority: 'HIGH',
+          storyPoints: null,
+          estimatedHours: null,
+          dueDate: null,
+          acceptanceCriteria: null,
+          sortOrder: 0,
+          tags: [],
+          createdAt: '2026-05-21T10:00:00',
+          updatedAt: '2026-05-21T10:00:00',
+        },
+        comments: [],
+        activities: [],
+        addComment: async () => {
+          throw new Error('network unavailable')
+        },
+      },
+    })
+
+    const textarea = document.body.querySelector('textarea') as HTMLTextAreaElement
+    const form = document.body.querySelector('form') as HTMLFormElement
+
+    textarea.value = 'Keep this comment'
+    textarea.dispatchEvent(new Event('input'))
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+
+    expect(textarea.value).toBe('Keep this comment')
+    expect(document.body.textContent).toContain('评论保存失败，请重试')
   })
 })
