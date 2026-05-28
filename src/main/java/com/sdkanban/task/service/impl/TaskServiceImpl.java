@@ -2,6 +2,7 @@ package com.sdkanban.task.service.impl;
 
 import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
+import com.sdkanban.project.entity.ProjectMember;
 import com.sdkanban.project.entity.ProjectMemberId;
 import com.sdkanban.project.repository.ProjectMemberRepository;
 import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
@@ -215,7 +216,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskResponse archive(Long taskId, Long currentUserId) {
         Task task = requireTask(taskId);
-        projectService.requireMember(task.getProjectId(), currentUserId);
+        requireDestructiveTaskActor(task, currentUserId);
         if (!task.isArchived()) {
             task.archive();
             recordActivity(task, currentUserId, "TASK_ARCHIVED", null, null, null);
@@ -227,7 +228,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public void delete(Long taskId, Long currentUserId) {
         Task task = requireTask(taskId);
-        projectService.requireMember(task.getProjectId(), currentUserId);
+        requireDestructiveTaskActor(task, currentUserId);
         if (!task.isDeleted()) {
             task.delete();
             recordActivity(task, currentUserId, "TASK_DELETED", null, null, null);
@@ -275,6 +276,19 @@ public class TaskServiceImpl implements TaskService {
         return taskRepository.findById(taskId)
             .filter(task -> !task.isDeleted())
             .orElseThrow(() -> BusinessException.notFound("TASK_NOT_FOUND", "Task not found"));
+    }
+
+    private void requireDestructiveTaskActor(Task task, Long currentUserId) {
+        ProjectMember member = projectService.requireMember(task.getProjectId(), currentUserId);
+        if (ProjectMember.ROLE_OWNER.equals(member.getRole())
+            || Objects.equals(task.getCreatorId(), currentUserId)
+            || Objects.equals(task.getAssigneeId(), currentUserId)) {
+            return;
+        }
+        throw BusinessException.forbidden(
+            "TASK_ACTION_FORBIDDEN",
+            "Task action requires project owner, creator, or assignee permission"
+        );
     }
 
     private void validateAssignee(Long projectId, Long assigneeId) {

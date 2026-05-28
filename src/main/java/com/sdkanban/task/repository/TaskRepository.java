@@ -8,7 +8,14 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
-    @Query("select coalesce(max(task.sortOrder), -1) from Task task where task.projectId = :projectId and task.columnId = :columnId")
+    @Query("""
+        select coalesce(max(task.sortOrder), -1)
+        from Task task
+        where task.projectId = :projectId
+          and task.columnId = :columnId
+          and task.deleted = false
+          and task.archived = false
+        """)
     int maxSortOrderInColumn(@Param("projectId") Long projectId, @Param("columnId") Long columnId);
 
     @Query("""

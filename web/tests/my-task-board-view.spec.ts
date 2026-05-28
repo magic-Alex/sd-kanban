@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import MyTaskBoardView from '../src/views/MyTaskBoardView.vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
-import { fetchMyTaskBoard } from '../src/api/board'
-import { archiveTask, deleteTask, fetchTask, updateTask } from '../src/api/tasks'
+import { fetchMyTaskBoard, fetchProjectBoard } from '../src/api/board'
+import { fetchProjectMembers } from '../src/api/projects'
+import { archiveTask, deleteTask, fetchTask, updateTask, updateTaskPosition } from '../src/api/tasks'
 import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('../src/api/board', () => ({
@@ -19,6 +20,10 @@ vi.mock('../src/api/tasks', () => ({
   fetchTask: vi.fn(),
   updateTask: vi.fn(),
   updateTaskPosition: vi.fn(),
+}))
+
+vi.mock('../src/api/projects', () => ({
+  fetchProjectMembers: vi.fn(),
 }))
 
 const user = {
@@ -56,26 +61,48 @@ const task = {
   updatedAt: '2026-05-28T10:00:00',
 }
 
+const members = [
+  {
+    user,
+    role: 'owner',
+    joinedAt: '2026-05-28T09:00:00',
+  },
+]
+
+const projectBoard = {
+  projectId: 7,
+  columns: [
+    { id: 1, name: 'Ready', color: '#0ea5e9', sortOrder: 0, isDone: false, tasks: [taskCard] },
+    { id: 2, name: 'Done', color: '#22c55e', sortOrder: 1, isDone: true, tasks: [] },
+  ],
+}
+
 describe('MyTaskBoardView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.mocked(fetchMyTaskBoard).mockReset()
+    vi.mocked(fetchProjectBoard).mockReset()
+    vi.mocked(fetchProjectMembers).mockReset()
     vi.mocked(fetchTask).mockReset()
     vi.mocked(updateTask).mockReset()
+    vi.mocked(updateTaskPosition).mockReset()
     vi.mocked(archiveTask).mockReset()
     vi.mocked(deleteTask).mockReset()
     vi.mocked(fetchMyTaskBoard).mockResolvedValue({
       groupBy: 'project',
       groups: [{ id: 7, name: 'Delivery', tasks: [taskCard] }],
     })
+    vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
+    vi.mocked(fetchProjectMembers).mockResolvedValue(members)
     vi.mocked(fetchTask).mockResolvedValue(task)
     vi.mocked(updateTask).mockResolvedValue(task)
+    vi.mocked(updateTaskPosition).mockResolvedValue(undefined)
     vi.mocked(archiveTask).mockResolvedValue(task)
     vi.mocked(deleteTask).mockResolvedValue(undefined)
   })
 
-  it('opens the task drawer safely without project members or columns', async () => {
+  it('loads project context when opening the task drawer', async () => {
     const wrapper = mount(MyTaskBoardView, {
       attachTo: document.body,
     })
@@ -85,10 +112,29 @@ describe('MyTaskBoardView', () => {
     await flushPromises()
 
     const drawer = wrapper.getComponent(TaskDrawer)
-    expect(drawer.props('members')).toEqual([])
-    expect(drawer.props('columns')).toEqual([])
+    expect(fetchProjectBoard).toHaveBeenCalledWith(7)
+    expect(fetchProjectMembers).toHaveBeenCalledWith(7)
+    expect(drawer.props('members')).toEqual(members)
+    expect(drawer.props('columns')).toEqual(projectBoard.columns)
     expect(drawer.props('actionLoading')).toBe(false)
     expect(document.body.textContent).toContain('Review my task')
+  })
+
+  it('completes a task from the personal board', async () => {
+    const wrapper = mount(MyTaskBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('.task-card').trigger('click')
+    await flushPromises()
+
+    await wrapper.getComponent(TaskDrawer).props('completeTask')()
+    await flushPromises()
+
+    expect(updateTaskPosition).toHaveBeenCalledWith(12, { columnId: 2, sortOrder: 0 })
+    expect(fetchTask).toHaveBeenCalledWith(12)
+    expect(fetchMyTaskBoard).toHaveBeenCalledTimes(2)
   })
 
   it('resolves task saves even when my task board refresh fails afterward', async () => {

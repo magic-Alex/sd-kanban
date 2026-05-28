@@ -1,5 +1,6 @@
 package com.sdkanban.task.dto;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -14,7 +15,9 @@ public record UpdateTaskRequest(
     String taskType,
     @Size(max = 32)
     String priority,
+    @DecimalMin("0.0")
     BigDecimal storyPoints,
+    @DecimalMin("0.0")
     BigDecimal estimatedHours,
     LocalDate dueDate,
     String acceptanceCriteria,

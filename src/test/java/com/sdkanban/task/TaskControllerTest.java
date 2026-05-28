@@ -266,6 +266,23 @@ class TaskControllerTest {
     }
 
     @Test
+    void projectOwnerCanArchiveTaskCreatedByMember() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Owner archive");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT is_archived FROM tasks WHERE id = ?",
+            Boolean.class,
+            taskId
+        )).isTrue();
+    }
+
+    @Test
     void projectMemberCanSoftDeleteTaskAndDetailReturnsNotFound() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Delete me");
@@ -290,6 +307,53 @@ class TaskControllerTest {
             Integer.class,
             taskId
         )).isEqualTo(1);
+    }
+
+    @Test
+    void taskAssigneeCanSoftDeleteTaskCreatedByOwner() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.owner().token(),
+            fixture.projectId(),
+            firstColumnId(fixture.projectId()),
+            "Assigned delete",
+            fixture.member().id()
+        );
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT is_deleted FROM tasks WHERE id = ?",
+            Boolean.class,
+            taskId
+        )).isTrue();
+    }
+
+    @Test
+    void ordinaryProjectMemberCannotArchiveOrDeleteUnrelatedTask() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.owner().token(),
+            fixture.projectId(),
+            firstColumnId(fixture.projectId()),
+            "Owner only task",
+            fixture.owner().id()
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_ACTION_FORBIDDEN"));
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_ACTION_FORBIDDEN"));
     }
 
     @Test
@@ -325,6 +389,27 @@ class TaskControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("TASK_CLEAR_FIELD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void negativePlanningNumbersAreRejected() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Invalid planning");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "storyPoints": -1,
+                      "estimatedHours": -0.5
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.fieldErrors.storyPoints").exists())
+            .andExpect(jsonPath("$.fieldErrors.estimatedHours").exists());
     }
 
     @Test
@@ -389,6 +474,24 @@ class TaskControllerTest {
                       "columnId": %d
                     }
                     """.formatted(title, columnId)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private long createTask(String token, long projectId, long columnId, String title, Long assigneeId) throws Exception {
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "%s",
+                      "columnId": %d,
+                      "assigneeId": %d
+                    }
+                    """.formatted(title, columnId, assigneeId)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

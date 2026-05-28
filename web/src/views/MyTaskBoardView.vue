@@ -2,13 +2,19 @@
 import { onMounted, ref } from 'vue'
 import TaskCard from '../components/board/TaskCard.vue'
 import TaskDrawer from '../components/task/TaskDrawer.vue'
-import type { UpdateTaskRequest } from '../api/tasks'
+import { fetchProjectBoard, type BoardColumn } from '../api/board'
+import { fetchProjectMembers, type ProjectMember } from '../api/projects'
+import { updateTaskPosition, type UpdateTaskRequest } from '../api/tasks'
 import { useBoardStore } from '../stores/board'
 import { useTasksStore } from '../stores/tasks'
 
 const board = useBoardStore()
 const tasks = useTasksStore()
 const groupBy = ref('project')
+const drawerMembers = ref<ProjectMember[]>([])
+const drawerColumns = ref<BoardColumn[]>([])
+const completingTask = ref(false)
+let contextRequestId = 0
 
 onMounted(() => {
   board.loadMyTaskBoard(groupBy.value)
@@ -18,8 +24,39 @@ async function reload() {
   await board.loadMyTaskBoard(groupBy.value)
 }
 
+async function loadDrawerContext(projectId: number) {
+  const requestId = contextRequestId + 1
+  contextRequestId = requestId
+  drawerMembers.value = []
+  drawerColumns.value = []
+  try {
+    const [projectBoard, members] = await Promise.all([
+      fetchProjectBoard(projectId),
+      fetchProjectMembers(projectId),
+    ])
+    if (contextRequestId === requestId && tasks.drawerOpen && tasks.activeTask?.projectId === projectId) {
+      drawerColumns.value = projectBoard.columns
+      drawerMembers.value = members
+    }
+  } catch (error) {
+    if (contextRequestId === requestId) {
+      board.error = board.error ?? '任务项目信息加载失败'
+    }
+  }
+}
+
+async function openTask(taskId: number) {
+  await tasks.openTask(taskId)
+  if (tasks.activeTask) {
+    await loadDrawerContext(tasks.activeTask.projectId)
+  }
+}
+
 async function saveTask(update: UpdateTaskRequest) {
   await tasks.saveTask(update)
+  if (tasks.activeTask) {
+    await loadDrawerContext(tasks.activeTask.projectId)
+  }
   try {
     await reload()
   } catch (error) {
@@ -27,8 +64,24 @@ async function saveTask(update: UpdateTaskRequest) {
   }
 }
 
-function completeTask() {
-  return undefined
+async function completeTask() {
+  const taskId = tasks.activeTask?.id
+  const projectId = tasks.activeTask?.projectId
+  const doneColumn = drawerColumns.value.find((column) => column.isDone)
+  if (!taskId || !projectId || !doneColumn || completingTask.value) {
+    return
+  }
+  completingTask.value = true
+  try {
+    await updateTaskPosition(taskId, { columnId: doneColumn.id, sortOrder: doneColumn.tasks.length })
+    if (tasks.drawerOpen && tasks.activeTask?.id === taskId) {
+      await tasks.openTask(taskId)
+      await loadDrawerContext(projectId)
+    }
+    await reload()
+  } finally {
+    completingTask.value = false
+  }
 }
 
 async function archiveTask() {
@@ -70,7 +123,7 @@ async function deleteTask() {
             v-for="task in group.tasks"
             :key="task.id"
             :task="task"
-            @open="tasks.openTask"
+            @open="openTask"
           />
         </div>
       </section>
@@ -81,9 +134,9 @@ async function deleteTask() {
       :task="tasks.activeTask"
       :comments="tasks.comments"
       :activities="tasks.activities"
-      :members="[]"
-      :columns="[]"
-      :action-loading="tasks.actionLoading"
+      :members="drawerMembers"
+      :columns="drawerColumns"
+      :action-loading="tasks.actionLoading || completingTask"
       :action-error="tasks.actionError"
       :add-comment="tasks.addComment"
       :save-task="saveTask"
