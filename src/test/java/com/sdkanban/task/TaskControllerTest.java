@@ -146,6 +146,96 @@ class TaskControllerTest {
     }
 
     @Test
+    void projectMemberCanClearNullableTaskFields() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long sprintId = createSprint(fixture.member().token(), fixture.projectId(), "Sprint 1");
+        long columnId = firstColumnId(fixture.projectId());
+
+        String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Editable task",
+                      "description": "Clear me",
+                      "columnId": %d,
+                      "assigneeId": %d,
+                      "sprintId": %d,
+                      "storyPoints": 8,
+                      "estimatedHours": 13.5,
+                      "dueDate": "2026-06-08",
+                      "acceptanceCriteria": "Clear acceptance"
+                    }
+                    """.formatted(columnId, fixture.member().id(), sprintId)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        long taskId = objectMapper.readTree(response).path("data").path("id").asLong();
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clearFields": [
+                        "description",
+                        "assigneeId",
+                        "sprintId",
+                        "storyPoints",
+                        "estimatedHours",
+                        "dueDate",
+                        "acceptanceCriteria"
+                      ]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.description").isEmpty())
+            .andExpect(jsonPath("$.data.assignee").isEmpty())
+            .andExpect(jsonPath("$.data.sprintId").isEmpty())
+            .andExpect(jsonPath("$.data.storyPoints").isEmpty())
+            .andExpect(jsonPath("$.data.estimatedHours").isEmpty())
+            .andExpect(jsonPath("$.data.dueDate").isEmpty())
+            .andExpect(jsonPath("$.data.acceptanceCriteria").isEmpty());
+
+        assertThat(jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM tasks
+            WHERE id = ?
+              AND description IS NULL
+              AND assignee_id IS NULL
+              AND sprint_id IS NULL
+              AND story_points IS NULL
+              AND estimated_hours IS NULL
+              AND due_date IS NULL
+              AND acceptance_criteria IS NULL
+            """,
+            Integer.class,
+            taskId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void unknownClearFieldIsRejected() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Invalid clear");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clearFields": ["title"]
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_CLEAR_FIELD_NOT_ALLOWED"));
+    }
+
+    @Test
     void nonMemberCannotReadOrUpdateTask() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         RegisteredUser outsider = register("outsider", "Outsider");

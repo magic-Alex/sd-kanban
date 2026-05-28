@@ -48,6 +48,15 @@ import java.util.Set;
 @Conditional(ProjectPersistenceAvailableCondition.class)
 public class TaskServiceImpl implements TaskService {
     private static final String DEFAULT_TAG_COLOR = "#64748b";
+    private static final Set<String> CLEARABLE_FIELDS = Set.of(
+        "description",
+        "storyPoints",
+        "estimatedHours",
+        "dueDate",
+        "acceptanceCriteria",
+        "assigneeId",
+        "sprintId"
+    );
 
     private final TaskRepository taskRepository;
     private final TaskTagRepository taskTagRepository;
@@ -128,6 +137,8 @@ public class TaskServiceImpl implements TaskService {
         Task task = requireTask(taskId);
         projectService.requireMember(task.getProjectId(), currentUserId);
 
+        applyClearFields(task, request, currentUserId);
+
         if (request.title() != null) {
             change(task, currentUserId, "title", task.getTitle(), requiredTitle(request.title()), task::changeTitle);
         }
@@ -166,6 +177,27 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return toTaskResponse(task);
+    }
+
+    private void applyClearFields(Task task, UpdateTaskRequest request, Long currentUserId) {
+        if (request.clearFields() == null || request.clearFields().isEmpty()) {
+            return;
+        }
+        for (String field : request.clearFields()) {
+            if (!CLEARABLE_FIELDS.contains(field)) {
+                throw BusinessException.badRequest("TASK_CLEAR_FIELD_NOT_ALLOWED", "Task field cannot be cleared");
+            }
+            switch (field) {
+                case "description" -> change(task, currentUserId, "description", task.getDescription(), null, task::changeDescription);
+                case "storyPoints" -> change(task, currentUserId, "storyPoints", task.getStoryPoints(), null, task::changeStoryPoints);
+                case "estimatedHours" -> change(task, currentUserId, "estimatedHours", task.getEstimatedHours(), null, task::changeEstimatedHours);
+                case "dueDate" -> change(task, currentUserId, "dueDate", task.getDueDate(), null, task::changeDueDate);
+                case "acceptanceCriteria" -> change(task, currentUserId, "acceptanceCriteria", task.getAcceptanceCriteria(), null, task::changeAcceptanceCriteria);
+                case "assigneeId" -> change(task, currentUserId, "assigneeId", task.getAssigneeId(), null, task::changeAssigneeId);
+                case "sprintId" -> change(task, currentUserId, "sprintId", task.getSprintId(), null, task::changeSprintId);
+                default -> throw BusinessException.badRequest("TASK_CLEAR_FIELD_NOT_ALLOWED", "Task field cannot be cleared");
+            }
+        }
     }
 
     @Override

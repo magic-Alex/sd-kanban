@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public record UpdateTaskRequest(
     @Size(max = 200)
@@ -19,6 +20,7 @@ public record UpdateTaskRequest(
     String acceptanceCriteria,
     Long assigneeId,
     Long sprintId,
-    Long columnId
+    Long columnId,
+    List<String> clearFields
 ) {
 }
