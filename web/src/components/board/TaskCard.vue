@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { TaskCard } from '../../api/board'
 
 const props = defineProps<{
@@ -15,6 +16,13 @@ function startDrag(event: DragEvent) {
   event.dataTransfer?.setData('application/sd-kanban-task', String(props.task.id))
   emit('dragStart', props.task.id)
 }
+
+const isOverdue = computed(() => {
+  if (!props.task.dueDate) {
+    return false
+  }
+  return props.task.dueDate < new Date().toISOString().slice(0, 10)
+})
 </script>
 
 <template>
@@ -22,10 +30,11 @@ function startDrag(event: DragEvent) {
     <div class="task-card-main">
       <strong>{{ task.title }}</strong>
       <span>{{ task.taskType }} · {{ task.priority }}</span>
+      <span>{{ task.assignee?.nickname ?? '未分配' }}</span>
     </div>
     <div class="task-card-meta">
       <small v-if="task.storyPoints !== null">{{ task.storyPoints }} SP</small>
-      <small v-if="task.dueDate">{{ task.dueDate }}</small>
+      <small v-if="task.dueDate" :class="{ overdue: isOverdue }">{{ task.dueDate }}</small>
     </div>
   </article>
 </template>

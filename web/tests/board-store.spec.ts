@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { fetchMyTaskBoard, fetchProjectBoard } from '../src/api/board'
-import { createTask, updateTaskPosition } from '../src/api/tasks'
+import { archiveTask, createTask, deleteTask, updateTaskPosition } from '../src/api/tasks'
 import { useBoardStore } from '../src/stores/board'
 
 vi.mock('../src/api/board', () => ({
@@ -10,7 +10,9 @@ vi.mock('../src/api/board', () => ({
 }))
 
 vi.mock('../src/api/tasks', () => ({
+  archiveTask: vi.fn(),
   createTask: vi.fn(),
+  deleteTask: vi.fn(),
   updateTaskPosition: vi.fn(),
 }))
 
@@ -30,6 +32,7 @@ const projectBoard = {
           sprintId: null,
           columnId: 1,
           assigneeId: 3,
+          assignee: { id: 3, account: 'member', nickname: 'Member', email: 'member@example.com', avatarUrl: null },
           title: 'Build board',
           taskType: 'STORY',
           priority: 'HIGH',
@@ -55,7 +58,9 @@ describe('board store', () => {
     setActivePinia(createPinia())
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchMyTaskBoard).mockReset()
+    vi.mocked(archiveTask).mockReset()
     vi.mocked(createTask).mockReset()
+    vi.mocked(deleteTask).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
   })
 
@@ -100,6 +105,27 @@ describe('board store', () => {
     expect(board.projectBoard?.columns[0].tasks).toHaveLength(0)
     expect(board.projectBoard?.columns[1].tasks[0].id).toBe(12)
     expect(board.projectBoard?.columns[1].tasks[0].columnId).toBe(2)
+  })
+
+  it('marks a task complete by moving it to the first done column', async () => {
+    vi.mocked(updateTaskPosition).mockResolvedValue({ ...projectBoard.columns[0].tasks[0], columnId: 2, sortOrder: 0 })
+    const board = useBoardStore()
+    board.projectBoard = structuredClone(projectBoard)
+
+    await board.markTaskComplete(12)
+
+    expect(updateTaskPosition).toHaveBeenCalledWith(12, { columnId: 2, sortOrder: 0 })
+    expect(board.projectBoard?.columns[0].tasks).toHaveLength(0)
+    expect(board.projectBoard?.columns[1].tasks[0].id).toBe(12)
+  })
+
+  it('removes archived and deleted tasks from the current board', () => {
+    const board = useBoardStore()
+    board.projectBoard = structuredClone(projectBoard)
+
+    board.removeTaskFromBoard(12)
+
+    expect(board.projectBoard?.columns[0].tasks).toHaveLength(0)
   })
 
   it('restores previous column state when move fails', async () => {

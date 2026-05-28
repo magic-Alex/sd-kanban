@@ -49,6 +49,21 @@ export interface CreateTaskRequest {
   tagIds?: number[]
 }
 
+export interface UpdateTaskRequest {
+  title?: string
+  description?: string | null
+  taskType?: string
+  priority?: string
+  storyPoints?: number | null
+  estimatedHours?: number | null
+  dueDate?: string | null
+  acceptanceCriteria?: string | null
+  assigneeId?: number | null
+  sprintId?: number | null
+  columnId?: number
+  clearFields?: string[]
+}
+
 export interface TaskComment {
   id: number
   taskId: number
@@ -85,9 +100,18 @@ export async function updateTaskPosition(
   return response.data.data
 }
 
-export async function updateTask(taskId: number, request: Partial<TaskResponse>): Promise<TaskResponse> {
+export async function updateTask(taskId: number, request: UpdateTaskRequest): Promise<TaskResponse> {
   const response = await http.patch(`/tasks/${taskId}`, request)
   return response.data.data
+}
+
+export async function archiveTask(taskId: number): Promise<TaskResponse> {
+  const response = await http.patch(`/tasks/${taskId}/archive`)
+  return response.data.data
+}
+
+export async function deleteTask(taskId: number): Promise<void> {
+  await http.delete(`/tasks/${taskId}`)
 }
 
 export function addTaskComment(taskId: number, content: string): Promise<TaskComment> {

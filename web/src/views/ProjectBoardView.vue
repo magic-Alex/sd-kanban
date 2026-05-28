@@ -75,7 +75,7 @@ async function submitTask(request: CreateTaskRequest) {
       <button class="primary-button" type="button" @click="openCreateTask()">新增任务</button>
     </header>
 
-    <BoardFilters v-model="filters" @apply="applyFilters" />
+    <BoardFilters v-model="filters" :members="members" @apply="applyFilters" />
     <p v-if="board.error" class="form-error">{{ board.error }}</p>
     <p v-else-if="board.loading" class="muted">正在加载看板...</p>
 

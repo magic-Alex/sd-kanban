@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import type { BoardQuery } from '../../api/board'
+import type { ProjectMember } from '../../api/projects'
 
 const props = defineProps<{
   modelValue: BoardQuery
+  members: ProjectMember[]
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +22,9 @@ watch(
 
 function apply() {
   const value = { ...filters }
+  if (value.assigneeId === 'unassigned') {
+    value.assigneeId = '0'
+  }
   emit('update:modelValue', value)
   emit('apply', value)
 }
@@ -28,6 +33,13 @@ function apply() {
 <template>
   <form class="board-filters" @submit.prevent="apply">
     <input v-model="filters.keyword" placeholder="搜索任务" />
+    <select v-model="filters.assigneeId" aria-label="任务负责人筛选">
+      <option value="">全部负责人</option>
+      <option value="unassigned">未分配</option>
+      <option v-for="member in members" :key="member.user.id" :value="String(member.user.id)">
+        {{ member.user.nickname }}
+      </option>
+    </select>
     <select v-model="filters.type" aria-label="任务类型">
       <option value="">全部类型</option>
       <option value="TASK">任务</option>

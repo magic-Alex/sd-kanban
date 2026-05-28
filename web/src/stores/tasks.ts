@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { addTaskComment, fetchTask, updateTask, type TaskActivity, type TaskComment, type TaskResponse } from '../api/tasks'
+import { addTaskComment, fetchTask, updateTask, type TaskActivity, type TaskComment, type TaskResponse, type UpdateTaskRequest } from '../api/tasks'
 
 export const useTasksStore = defineStore('tasks', {
   state: () => ({
@@ -29,7 +29,7 @@ export const useTasksStore = defineStore('tasks', {
     closeDrawer() {
       this.drawerOpen = false
     },
-    async saveTask(update: Partial<TaskResponse>) {
+    async saveTask(update: UpdateTaskRequest) {
       if (!this.activeTask) {
         return
       }

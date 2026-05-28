@@ -133,4 +133,17 @@ describe('ProjectBoardView', () => {
     expect(fetchProjectBoard).toHaveBeenCalledTimes(2)
     expect(document.body.textContent).not.toContain('创建看板任务')
   })
+
+  it('passes members to filters and applies the assignee filter', async () => {
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('select[aria-label="任务负责人筛选"]').setValue('11')
+    await wrapper.get('form.board-filters').trigger('submit')
+    await flushPromises()
+
+    expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '11' })
+  })
 })

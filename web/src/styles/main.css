@@ -348,7 +348,7 @@ small,
 
 .board-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 160px 160px auto;
+  grid-template-columns: minmax(220px, 1fr) 180px 160px 160px auto;
   gap: 10px;
 }
 
@@ -455,6 +455,11 @@ small,
   border-radius: 999px;
   padding: 3px 8px;
   background: #eef5f8;
+}
+
+.task-card-meta small.overdue {
+  color: #b42318;
+  background: #fee4e2;
 }
 
 .drawer-backdrop {

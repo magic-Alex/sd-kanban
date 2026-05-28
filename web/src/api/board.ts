@@ -1,4 +1,5 @@
 import { getData } from './http'
+import type { UserSummary } from './auth'
 
 export interface TaskCard {
   id: number
@@ -6,6 +7,7 @@ export interface TaskCard {
   sprintId: number | null
   columnId: number
   assigneeId: number | null
+  assignee: UserSummary | null
   title: string
   taskType: string
   priority: string

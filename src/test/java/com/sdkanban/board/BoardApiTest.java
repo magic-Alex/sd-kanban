@@ -124,6 +124,41 @@ class BoardApiTest {
     }
 
     @Test
+    void projectBoardSupportsUnassignedAssigneeFilter() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = columnIds(fixture.projectId()).get(0);
+        long expectedTaskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnId,
+            null,
+            null,
+            "Unassigned API",
+            "TASK",
+            "MEDIUM"
+        );
+        createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnId,
+            fixture.member().id(),
+            null,
+            "Assigned API",
+            "TASK",
+            "MEDIUM"
+        );
+
+        mockMvc.perform(get("/api/projects/{projectId}/board", fixture.projectId())
+                .queryParam("assigneeId", "0")
+                .header("Authorization", "Bearer " + fixture.owner().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.columns[0].tasks.length()").value(1))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].id").value(expectedTaskId))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].assignee").doesNotExist());
+    }
+
+    @Test
     void positionUpdateChangesColumnAndSortOrder() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         List<Long> columns = columnIds(fixture.projectId());
@@ -212,13 +247,14 @@ class BoardApiTest {
         String token,
         long projectId,
         long columnId,
-        long assigneeId,
+        Long assigneeId,
         Long sprintId,
         String title,
         String taskType,
         String priority
     ) throws Exception {
         String sprintJson = sprintId == null ? "" : "\"sprintId\": %d,".formatted(sprintId);
+        String assigneeJson = assigneeId == null ? "" : "\"assigneeId\": %d,".formatted(assigneeId);
         String response = mockMvc.perform(post("/api/projects/{projectId}/tasks", projectId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -226,12 +262,12 @@ class BoardApiTest {
                     {
                       "title": "%s",
                       "columnId": %d,
-                      "assigneeId": %d,
+                      %s
                       %s
                       "taskType": "%s",
                       "priority": "%s"
                     }
-                    """.formatted(title, columnId, assigneeId, sprintJson, taskType, priority)))
+                    """.formatted(title, columnId, assigneeJson, sprintJson, taskType, priority)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

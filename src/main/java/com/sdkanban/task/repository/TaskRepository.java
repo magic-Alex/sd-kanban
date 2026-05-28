@@ -18,7 +18,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
           and task.deleted = false
           and task.archived = false
           and (:sprintId is null or task.sprintId = :sprintId)
-          and (:assigneeId is null or task.assigneeId = :assigneeId)
+          and (:assigneeId is null or (:assigneeId = 0 and task.assigneeId is null) or task.assigneeId = :assigneeId)
           and (:taskType is null or task.taskType = :taskType)
           and (:priority is null or task.priority = :priority)
           and (

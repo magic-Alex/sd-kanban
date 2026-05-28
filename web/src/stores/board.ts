@@ -20,6 +20,8 @@ export const useBoardStore = defineStore('board', {
     loading: false,
     movingTaskId: null as number | null,
     error: null as string | null,
+    lastFilters: {} as BoardQuery,
+    lastProjectId: null as number | string | null,
   }),
   actions: {
     async loadProjectBoard(projectId: number | string, filters: BoardQuery = {}) {
@@ -27,6 +29,8 @@ export const useBoardStore = defineStore('board', {
       this.error = null
       try {
         this.projectBoard = await fetchProjectBoard(projectId, filters)
+        this.lastProjectId = projectId
+        this.lastFilters = { ...filters }
       } catch (error) {
         this.error = '看板加载失败'
         throw error
@@ -62,6 +66,22 @@ export const useBoardStore = defineStore('board', {
       } finally {
         this.movingTaskId = null
       }
+    },
+    async refreshProjectBoard() {
+      if (this.lastProjectId === null) {
+        return
+      }
+      await this.loadProjectBoard(this.lastProjectId, this.lastFilters)
+    },
+    async markTaskComplete(taskId: number) {
+      const doneColumn = this.projectBoard?.columns.find((column) => column.isDone)
+      if (!doneColumn) {
+        throw new Error('项目暂无完成列')
+      }
+      await this.moveTask(taskId, doneColumn.id, doneColumn.tasks.length)
+    },
+    removeTaskFromBoard(taskId: number) {
+      this.removeTask(taskId)
     },
     async createTask(projectId: number | string, request: CreateTaskRequest, filters: BoardQuery = {}) {
       const task = await createTask(projectId, request)
