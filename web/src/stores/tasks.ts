@@ -21,23 +21,33 @@ export const useTasksStore = defineStore('tasks', {
     error: null as string | null,
     actionLoading: false,
     actionError: null as string | null,
+    openTaskRequestId: 0,
   }),
   actions: {
     async openTask(taskId: number) {
+      const requestId = this.openTaskRequestId + 1
+      this.openTaskRequestId = requestId
       this.drawerOpen = true
       this.loading = true
       this.error = null
       this.actionLoading = false
       this.actionError = null
       try {
-        this.activeTask = await fetchTask(taskId)
-        this.comments = []
-        this.activities = []
+        const task = await fetchTask(taskId)
+        if (this.drawerOpen && this.openTaskRequestId === requestId) {
+          this.activeTask = task
+          this.comments = []
+          this.activities = []
+        }
       } catch (error) {
-        this.error = '任务详情加载失败'
+        if (this.drawerOpen && this.openTaskRequestId === requestId) {
+          this.error = '任务详情加载失败'
+        }
         throw error
       } finally {
-        this.loading = false
+        if (this.openTaskRequestId === requestId) {
+          this.loading = false
+        }
       }
     },
     closeDrawer() {

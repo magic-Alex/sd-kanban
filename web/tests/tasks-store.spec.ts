@@ -124,6 +124,30 @@ describe('tasks store', () => {
     expect(tasks.actionLoading).toBe(false)
   })
 
+  it('does not replace the active task with a stale open task response', async () => {
+    const fetchA = deferred<typeof taskA>()
+    const fetchB = deferred<typeof taskB>()
+    vi.mocked(fetchTask)
+      .mockReturnValueOnce(fetchA.promise)
+      .mockReturnValueOnce(fetchB.promise)
+    const tasks = useTasksStore()
+
+    const openA = tasks.openTask(taskA.id)
+    const openB = tasks.openTask(taskB.id)
+
+    fetchB.resolve(taskB)
+    await openB
+    fetchA.resolve(taskA)
+    await openA
+
+    expect(fetchTask).toHaveBeenNthCalledWith(1, taskA.id)
+    expect(fetchTask).toHaveBeenNthCalledWith(2, taskB.id)
+    expect(tasks.activeTask).toEqual(taskB)
+    expect(tasks.drawerOpen).toBe(true)
+    expect(tasks.error).toBeNull()
+    expect(tasks.loading).toBe(false)
+  })
+
   it('does not close a newer task drawer after a stale archive succeeds', async () => {
     const archive = deferred<void>()
     vi.mocked(archiveTask).mockReturnValue(archive.promise)

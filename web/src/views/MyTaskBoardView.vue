@@ -20,7 +20,11 @@ async function reload() {
 
 async function saveTask(update: UpdateTaskRequest) {
   await tasks.saveTask(update)
-  await reload()
+  try {
+    await reload()
+  } catch (error) {
+    board.error = board.error ?? '看板刷新失败'
+  }
 }
 
 function completeTask() {

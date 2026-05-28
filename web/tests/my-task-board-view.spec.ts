@@ -5,6 +5,7 @@ import MyTaskBoardView from '../src/views/MyTaskBoardView.vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 import { fetchMyTaskBoard } from '../src/api/board'
 import { archiveTask, deleteTask, fetchTask, updateTask } from '../src/api/tasks'
+import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('../src/api/board', () => ({
   fetchProjectBoard: vi.fn(),
@@ -88,5 +89,21 @@ describe('MyTaskBoardView', () => {
     expect(drawer.props('columns')).toEqual([])
     expect(drawer.props('actionLoading')).toBe(false)
     expect(document.body.textContent).toContain('Review my task')
+  })
+
+  it('resolves task saves even when my task board refresh fails afterward', async () => {
+    vi.mocked(updateTask).mockResolvedValue({ ...task, title: 'Saved task' })
+    const wrapper = mount(MyTaskBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const tasks = useTasksStore()
+    tasks.drawerOpen = true
+    tasks.activeTask = task
+    vi.mocked(fetchMyTaskBoard).mockRejectedValueOnce(new Error('refresh failed'))
+
+    await expect(wrapper.getComponent(TaskDrawer).props('saveTask')({ title: 'Saved task' })).resolves.toBeUndefined()
+    expect(updateTask).toHaveBeenCalledWith(task.id, { title: 'Saved task' })
   })
 })
