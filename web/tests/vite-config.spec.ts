@@ -11,11 +11,13 @@ describe('vite config', () => {
   })
 
   it('allows runtime overrides for dev port and API proxy target', async () => {
+    vi.stubEnv('FRONTEND_HOST', '127.0.0.1')
     vi.stubEnv('FRONTEND_PORT', '8202')
     vi.stubEnv('API_PROXY_TARGET', 'http://localhost:8201')
 
     const config = await loadConfig()
 
+    expect(config.server?.host).toBe('127.0.0.1')
     expect(config.server?.port).toBe(8202)
     expect(config.server?.proxy?.['/api']).toMatchObject({
       target: 'http://localhost:8201',
