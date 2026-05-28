@@ -45,10 +45,14 @@ export const useTasksStore = defineStore('tasks', {
       if (!this.activeTask) {
         return
       }
+      const taskId = this.activeTask.id
       this.actionLoading = true
       this.actionError = null
       try {
-        this.activeTask = await updateTask(this.activeTask.id, update)
+        const task = await updateTask(taskId, update)
+        if (this.drawerOpen && this.activeTask?.id === taskId) {
+          this.activeTask = task
+        }
       } catch (error) {
         this.actionError = '任务保存失败，请重试'
         throw error

@@ -169,12 +169,11 @@ describe('ProjectBoardView', () => {
     expect((assigneeFilter.element as HTMLSelectElement).value).toBe('0')
   })
 
-  it('reloads the originally active task after completing, even if the drawer active task changes', async () => {
+  it('does not reopen the originally active task after completing if the drawer active task changes', async () => {
     let resolveMove: () => void = () => undefined
     vi.mocked(updateTaskPosition).mockImplementation(() => new Promise<void>((resolve) => {
       resolveMove = resolve
     }))
-    vi.mocked(fetchTask).mockResolvedValue({ ...createdTask, id: 101, title: 'Original task' })
     const wrapper = mount(ProjectBoardView, {
       attachTo: document.body,
     })
@@ -198,6 +197,7 @@ describe('ProjectBoardView', () => {
     }
     tasks.drawerOpen = true
     tasks.activeTask = { ...createdTask, id: 101, title: 'Original task' }
+    vi.mocked(fetchTask).mockClear()
 
     const completePromise = wrapper.getComponent(TaskDrawer).props('completeTask')()
     await flushPromises()
@@ -206,7 +206,8 @@ describe('ProjectBoardView', () => {
     await completePromise
 
     expect(updateTaskPosition).toHaveBeenCalledWith(101, { columnId: 2, sortOrder: 0 })
-    expect(fetchTask).toHaveBeenLastCalledWith(101)
+    expect(fetchTask).not.toHaveBeenCalled()
+    expect(tasks.activeTask?.id).toBe(202)
   })
 
   it('resolves task saves even when board refresh fails afterward', async () => {

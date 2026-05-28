@@ -82,7 +82,9 @@ async function completeActiveTask() {
   completingTask.value = true
   try {
     await board.markTaskComplete(taskId)
-    await tasks.openTask(taskId)
+    if (tasks.drawerOpen && tasks.activeTask?.id === taskId) {
+      await tasks.openTask(taskId)
+    }
   } finally {
     completingTask.value = false
   }
