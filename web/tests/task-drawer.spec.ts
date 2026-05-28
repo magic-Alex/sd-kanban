@@ -188,6 +188,18 @@ describe('TaskDrawer', () => {
     }))
   })
 
+  it('labels the edit form for assistive technology', async () => {
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps(),
+    })
+
+    ;(document.body.querySelector('.drawer-actions button') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(document.body.querySelector('form')?.getAttribute('aria-label')).toBe('\u7f16\u8f91\u4efb\u52a1\u8868\u5355')
+  })
+
   it('confirms before deleting the task', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const deleteTask = vi.fn()

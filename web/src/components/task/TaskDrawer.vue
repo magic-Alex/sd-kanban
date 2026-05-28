@@ -239,7 +239,7 @@ async function submitComment() {
         <template v-if="task">
           <p v-if="actionErrorMessage" class="form-error" aria-live="polite">{{ actionErrorMessage }}</p>
 
-          <form v-if="editing" class="task-edit-form" @submit.prevent="saveEdits">
+          <form v-if="editing" class="task-edit-form" aria-label="编辑任务表单" @submit.prevent="saveEdits">
             <label class="full-field">
               标题
               <input v-model="draft.title" aria-label="编辑任务标题" />
