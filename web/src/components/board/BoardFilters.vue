@@ -22,9 +22,6 @@ watch(
 
 function apply() {
   const value = { ...filters }
-  if (value.assigneeId === 'unassigned') {
-    value.assigneeId = '0'
-  }
   emit('update:modelValue', value)
   emit('apply', value)
 }
@@ -35,7 +32,7 @@ function apply() {
     <input v-model="filters.keyword" placeholder="搜索任务" />
     <select v-model="filters.assigneeId" aria-label="任务负责人筛选">
       <option value="">全部负责人</option>
-      <option value="unassigned">未分配</option>
+      <option value="0">未分配</option>
       <option v-for="member in members" :key="member.user.id" :value="String(member.user.id)">
         {{ member.user.nickname }}
       </option>

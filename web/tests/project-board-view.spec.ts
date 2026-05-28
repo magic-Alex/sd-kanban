@@ -146,4 +146,19 @@ describe('ProjectBoardView', () => {
 
     expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '11' })
   })
+
+  it('keeps the unassigned assignee filter selected after applying filters', async () => {
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const assigneeFilter = wrapper.get('select[aria-label="任务负责人筛选"]')
+    await assigneeFilter.setValue('0')
+    await wrapper.get('form.board-filters').trigger('submit')
+    await flushPromises()
+
+    expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '0' })
+    expect((assigneeFilter.element as HTMLSelectElement).value).toBe('0')
+  })
 })
