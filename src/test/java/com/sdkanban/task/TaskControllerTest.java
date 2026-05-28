@@ -293,6 +293,23 @@ class TaskControllerTest {
     }
 
     @Test
+    void projectMemberCanSoftDeleteTaskAndHideItFromBoard() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Delete from board");
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/projects/{projectId}/board", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.columns[0].tasks.length()").value(0));
+    }
+
+    @Test
     void nullClearFieldIsRejected() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Null clear");
@@ -330,6 +347,25 @@ class TaskControllerTest {
                       "title": "Not allowed"
                     }
                     """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+    }
+
+    @Test
+    void nonMemberCannotArchiveOrDeleteTask() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        RegisteredUser outsider = register("outsider", "Outsider");
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Private task");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + outsider.token()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + outsider.token()))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));

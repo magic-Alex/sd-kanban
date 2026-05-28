@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -94,6 +95,28 @@ class MyTaskBoardApiTest {
         );
 
         mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/mine/board")
+                .queryParam("groupBy", "project")
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groups.length()").value(0));
+    }
+
+    @Test
+    void myTaskBoardExcludesDeletedTasks() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Deleted mine"
+        );
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk());
 
