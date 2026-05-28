@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick, reactive } from 'vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 
 function userFixture(overrides = {}) {
@@ -199,5 +200,50 @@ describe('TaskDrawer', () => {
     await flushPromises()
 
     expect(deleteTask).toHaveBeenCalled()
+  })
+
+  it('does not delete the task when confirmation is cancelled', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const deleteTask = vi.fn()
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({ deleteTask }),
+    })
+
+    ;(getByLabel('删除任务') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(deleteTask).not.toHaveBeenCalled()
+  })
+
+  it('resets edit state and draft when the same task refreshes with a new update time', async () => {
+    const task = reactive(taskFixture({
+      id: 12,
+      title: 'Original title',
+      updatedAt: '2026-05-21T10:00:00',
+    }))
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        task,
+      }),
+    })
+
+    await (getByLabel('编辑任务') as HTMLButtonElement).click()
+    await flushPromises()
+    const title = getByLabel('编辑任务标题') as HTMLInputElement
+    title.value = 'Local unsaved title'
+    title.dispatchEvent(new Event('input'))
+
+    task.title = 'Server refreshed title'
+    task.updatedAt = '2026-05-21T10:05:00'
+    await nextTick()
+
+    expect(document.body.querySelector('[aria-label="编辑任务标题"]')).toBeNull()
+
+    await (getByLabel('编辑任务') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect((getByLabel('编辑任务标题') as HTMLInputElement).value).toBe('Server refreshed title')
   })
 })

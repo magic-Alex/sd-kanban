@@ -21,6 +21,7 @@ const createModalOpen = ref(false)
 const createDefaultColumnId = ref<number | null>(null)
 const createError = ref<string | null>(null)
 const submittingTask = ref(false)
+const completingTask = ref(false)
 
 onMounted(() => {
   board.loadProjectBoard(projectId, filters.value)
@@ -66,15 +67,25 @@ async function submitTask(request: CreateTaskRequest) {
 
 async function saveActiveTask(request: UpdateTaskRequest) {
   await tasks.saveTask(request)
-  await board.refreshProjectBoard()
+  try {
+    await board.refreshProjectBoard()
+  } catch (error) {
+    board.error = board.error ?? '看板刷新失败'
+  }
 }
 
 async function completeActiveTask() {
-  if (!tasks.activeTask) {
+  const taskId = tasks.activeTask?.id
+  if (!taskId || completingTask.value) {
     return
   }
-  await board.markTaskComplete(tasks.activeTask.id)
-  await tasks.openTask(tasks.activeTask.id)
+  completingTask.value = true
+  try {
+    await board.markTaskComplete(taskId)
+    await tasks.openTask(taskId)
+  } finally {
+    completingTask.value = false
+  }
 }
 
 async function archiveActiveTask() {
@@ -137,7 +148,7 @@ async function deleteActiveTask() {
       :activities="tasks.activities"
       :members="members"
       :columns="board.projectBoard?.columns ?? []"
-      :action-loading="tasks.actionLoading"
+      :action-loading="tasks.actionLoading || completingTask"
       :action-error="tasks.actionError"
       :add-comment="tasks.addComment"
       :save-task="saveActiveTask"

@@ -45,7 +45,7 @@ const hasDoneColumn = computed(() => props.columns.some((column) => column.isDon
 const actionErrorMessage = computed(() => editError.value ?? props.actionError ?? null)
 
 watch(
-  () => [props.task?.id, props.open] as const,
+  () => [props.task?.id, props.task?.updatedAt, props.open] as const,
   () => {
     resetDraft()
     editError.value = null

@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ProjectBoardView from '../src/views/ProjectBoardView.vue'
+import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 import { fetchProjectBoard } from '../src/api/board'
 import { fetchProjectMembers } from '../src/api/projects'
-import { createTask, fetchTask } from '../src/api/tasks'
+import { createTask, fetchTask, updateTask, updateTaskPosition } from '../src/api/tasks'
+import { useBoardStore } from '../src/stores/board'
+import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { projectId: '7' } }),
@@ -86,10 +89,14 @@ describe('ProjectBoardView', () => {
     vi.mocked(fetchProjectMembers).mockReset()
     vi.mocked(createTask).mockReset()
     vi.mocked(fetchTask).mockReset()
+    vi.mocked(updateTask).mockReset()
+    vi.mocked(updateTaskPosition).mockReset()
     vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
     vi.mocked(fetchProjectMembers).mockResolvedValue(members)
     vi.mocked(createTask).mockResolvedValue(createdTask)
     vi.mocked(fetchTask).mockResolvedValue(createdTask)
+    vi.mocked(updateTask).mockResolvedValue(createdTask)
+    vi.mocked(updateTaskPosition).mockResolvedValue(undefined)
   })
 
   it('opens a create task modal and refreshes the board after submit', async () => {
@@ -160,5 +167,61 @@ describe('ProjectBoardView', () => {
 
     expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '0' })
     expect((assigneeFilter.element as HTMLSelectElement).value).toBe('0')
+  })
+
+  it('reloads the originally active task after completing, even if the drawer active task changes', async () => {
+    let resolveMove: () => void = () => undefined
+    vi.mocked(updateTaskPosition).mockImplementation(() => new Promise<void>((resolve) => {
+      resolveMove = resolve
+    }))
+    vi.mocked(fetchTask).mockResolvedValue({ ...createdTask, id: 101, title: 'Original task' })
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const board = useBoardStore()
+    const tasks = useTasksStore()
+    board.projectBoard = {
+      projectId: 7,
+      columns: [
+        {
+          id: 1,
+          name: 'Backlog',
+          color: '#64748b',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [{ id: 101, title: 'Original task', priority: 'HIGH', taskType: 'STORY', assignee: null, sortOrder: 0 }],
+        },
+        { id: 2, name: 'Done', color: '#16a34a', sortOrder: 1, isDone: true, tasks: [] },
+      ],
+    }
+    tasks.drawerOpen = true
+    tasks.activeTask = { ...createdTask, id: 101, title: 'Original task' }
+
+    const completePromise = wrapper.getComponent(TaskDrawer).props('completeTask')()
+    await flushPromises()
+    tasks.activeTask = { ...createdTask, id: 202, title: 'Different task' }
+    resolveMove()
+    await completePromise
+
+    expect(updateTaskPosition).toHaveBeenCalledWith(101, { columnId: 2, sortOrder: 0 })
+    expect(fetchTask).toHaveBeenLastCalledWith(101)
+  })
+
+  it('resolves task saves even when board refresh fails afterward', async () => {
+    vi.mocked(updateTask).mockResolvedValue({ ...createdTask, title: 'Saved task' })
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const tasks = useTasksStore()
+    tasks.drawerOpen = true
+    tasks.activeTask = createdTask
+    vi.mocked(fetchProjectBoard).mockRejectedValueOnce(new Error('refresh failed'))
+
+    await expect(wrapper.getComponent(TaskDrawer).props('saveTask')({ title: 'Saved task' })).resolves.toBeUndefined()
+    expect(updateTask).toHaveBeenCalledWith(55, { title: 'Saved task' })
   })
 })
