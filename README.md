@@ -21,6 +21,26 @@ Start the backend:
 .\scripts\dev-backend.ps1
 ```
 
+Runtime configuration can be supplied through environment variables. Local defaults keep the existing development setup working.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SERVER_PORT` | `8101` | Spring Boot HTTP port |
+| `DB_URL` | Built from `DB_HOST`, `DB_PORT`, and `DB_NAME` | Full JDBC URL override |
+| `DB_HOST` | `localhost` | MySQL host when `DB_URL` is not set |
+| `DB_PORT` | `3306` | MySQL port when `DB_URL` is not set |
+| `DB_NAME` | `sd_kanban` | MySQL database name when `DB_URL` is not set |
+| `DB_USERNAME` | `root` | MySQL user |
+| `DB_PASSWORD` | `root` | MySQL password |
+| `DB_TIMEZONE` | `Asia/Shanghai` | JDBC server timezone |
+| `DB_CREATE_DATABASE_IF_NOT_EXIST` | `true` | Local database auto-create switch |
+| `JPA_DDL_AUTO` | `validate` | Hibernate schema behavior |
+| `FLYWAY_ENABLED` | `true` | Flyway migration switch |
+| `JWT_SECRET` | Local development secret | JWT signing secret; use a long random value in production |
+| `JWT_EXPIRES_MINUTES` | `720` | JWT lifetime in minutes |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:8102` | Comma-separated browser origins allowed to call `/api/**` |
+| `MAVEN_REPO_LOCAL` | `D:\root\dev\Java\maven\repository` | Maven local repository used by scripts |
+
 ## Frontend
 
 - Vue 3 with Vite
@@ -39,6 +59,15 @@ Start the frontend dev server:
 ```powershell
 .\scripts\dev-frontend.ps1
 ```
+
+Frontend development variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `FRONTEND_HOST` | `0.0.0.0` | Host passed by the dev script |
+| `FRONTEND_PORT` | `8102` | Vite dev server port |
+| `FRONTEND_URL` | `http://localhost:8102` | URL used to infer the dev server port |
+| `API_PROXY_TARGET` | `http://localhost:8101` | Vite `/api` proxy target |
 
 ## Package
 

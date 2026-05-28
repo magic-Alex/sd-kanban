@@ -1,2 +1,4 @@
 Set-Location "$PSScriptRoot\..\web"
-npm run dev -- --host 0.0.0.0 --port 8102
+$frontendHost = if ($env:FRONTEND_HOST) { $env:FRONTEND_HOST } else { '0.0.0.0' }
+$frontendPort = if ($env:FRONTEND_PORT) { $env:FRONTEND_PORT } else { '8102' }
+npm run dev -- --host $frontendHost --port $frontendPort
