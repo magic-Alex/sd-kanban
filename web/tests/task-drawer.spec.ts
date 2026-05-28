@@ -232,6 +232,42 @@ describe('TaskDrawer', () => {
     expect((document.body.querySelector('.task-edit-form input') as HTMLInputElement).value).toBe('Task B')
   })
 
+  it('does not show a stale save error after switching tasks', async () => {
+    const { promise, rejectPromise } = controllableRejectingPromise()
+    const saveTask = vi.fn(() => promise)
+    const wrapper = mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        task: taskFixture({ id: 12, title: 'Task A' }),
+        saveTask,
+      }),
+    })
+
+    await drawerActionButton(0).click()
+    await flushPromises()
+    const title = document.body.querySelector('.task-edit-form input') as HTMLInputElement
+    title.value = 'Task A edited'
+    title.dispatchEvent(new Event('input'))
+    ;(document.body.querySelector('.task-edit-form button[type="submit"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(saveTask).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({
+      task: taskFixture({ id: 34, title: 'Task B' }),
+    })
+    await drawerActionButton(0).click()
+    await flushPromises()
+
+    rejectPromise(new Error('stale save failed'))
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Task B')
+    expect(document.body.querySelector('.task-edit-form')).toBeTruthy()
+    expect((document.body.querySelector('.task-edit-form input') as HTMLInputElement).value).toBe('Task B')
+    expect(document.body.querySelector('.form-error')).toBeNull()
+    expect(document.body.textContent).not.toContain('任务保存失败，请重试')
+  })
+
   it.each([
     {
       actionName: 'complete',
