@@ -236,6 +236,24 @@ class TaskControllerTest {
     }
 
     @Test
+    void nullClearFieldIsRejected() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Null clear");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clearFields": [null]
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_CLEAR_FIELD_NOT_ALLOWED"));
+    }
+
+    @Test
     void nonMemberCannotReadOrUpdateTask() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         RegisteredUser outsider = register("outsider", "Outsider");

@@ -184,7 +184,7 @@ public class TaskServiceImpl implements TaskService {
             return;
         }
         for (String field : request.clearFields()) {
-            if (!CLEARABLE_FIELDS.contains(field)) {
+            if (field == null || !CLEARABLE_FIELDS.contains(field)) {
                 throw BusinessException.badRequest("TASK_CLEAR_FIELD_NOT_ALLOWED", "Task field cannot be cleared");
             }
             switch (field) {
