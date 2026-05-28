@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { fetchMyTaskBoard, fetchProjectBoard } from '../src/api/board'
-import { updateTaskPosition } from '../src/api/tasks'
+import { createTask, updateTaskPosition } from '../src/api/tasks'
 import { useBoardStore } from '../src/stores/board'
 
 vi.mock('../src/api/board', () => ({
@@ -10,6 +10,7 @@ vi.mock('../src/api/board', () => ({
 }))
 
 vi.mock('../src/api/tasks', () => ({
+  createTask: vi.fn(),
   updateTaskPosition: vi.fn(),
 }))
 
@@ -54,6 +55,7 @@ describe('board store', () => {
     setActivePinia(createPinia())
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchMyTaskBoard).mockReset()
+    vi.mocked(createTask).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
   })
 
@@ -109,5 +111,46 @@ describe('board store', () => {
 
     expect(board.projectBoard?.columns[0].tasks[0].id).toBe(12)
     expect(board.projectBoard?.columns[1].tasks).toHaveLength(0)
+  })
+
+  it('creates a task and reloads the current project board', async () => {
+    vi.mocked(createTask).mockResolvedValue({
+      id: 31,
+      projectId: 7,
+      sprintId: null,
+      columnId: 1,
+      assignee: null,
+      creator: { id: 1, account: 'alex', nickname: 'Alex', email: null, avatarUrl: null },
+      title: 'Write onboarding checklist',
+      description: null,
+      taskType: 'TASK',
+      priority: 'MEDIUM',
+      storyPoints: null,
+      estimatedHours: null,
+      dueDate: null,
+      acceptanceCriteria: null,
+      sortOrder: 1,
+      tags: [],
+      createdAt: '2026-05-28T10:00:00',
+      updatedAt: '2026-05-28T10:00:00',
+    })
+    vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
+    const board = useBoardStore()
+
+    const task = await board.createTask(7, {
+      title: 'Write onboarding checklist',
+      taskType: 'TASK',
+      priority: 'MEDIUM',
+      columnId: 1,
+    }, { keyword: 'onboarding' })
+
+    expect(createTask).toHaveBeenCalledWith(7, {
+      title: 'Write onboarding checklist',
+      taskType: 'TASK',
+      priority: 'MEDIUM',
+      columnId: 1,
+    })
+    expect(fetchProjectBoard).toHaveBeenCalledWith(7, { keyword: 'onboarding' })
+    expect(task.title).toBe('Write onboarding checklist')
   })
 })

@@ -18,6 +18,12 @@ export interface CreateProjectRequest {
   description?: string
 }
 
+export interface ProjectMember {
+  user: UserSummary
+  role: string
+  joinedAt: string
+}
+
 export function fetchProjects(): Promise<Project[]> {
   return getData<Project[]>('/projects')
 }
@@ -28,4 +34,8 @@ export function fetchProject(projectId: number | string): Promise<Project> {
 
 export function createProject(request: CreateProjectRequest): Promise<Project> {
   return postData<Project, CreateProjectRequest>('/projects', request)
+}
+
+export function fetchProjectMembers(projectId: number | string): Promise<ProjectMember[]> {
+  return getData<ProjectMember[]>(`/projects/${projectId}/members`)
 }

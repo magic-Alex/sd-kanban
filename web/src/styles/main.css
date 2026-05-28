@@ -93,7 +93,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid #cbd5df;
   border-radius: 8px;
@@ -376,7 +377,7 @@ small,
 
 .board-column-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 8px;
   align-items: center;
   border-bottom: 1px solid #edf1f5;
@@ -396,6 +397,23 @@ small,
   align-content: start;
   gap: 10px;
   padding: 12px;
+}
+
+.task-stack.empty {
+  align-content: center;
+}
+
+.empty-column {
+  padding: 18px 8px;
+  color: #667085;
+  text-align: center;
+}
+
+.column-add-button {
+  padding: 6px 8px;
+  color: #176b5f;
+  background: #e8f3ef;
+  font-size: 0.82rem;
 }
 
 .task-card {
@@ -479,6 +497,33 @@ small,
   padding-bottom: 16px;
 }
 
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.task-detail-grid div {
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f6f9fb;
+}
+
+.task-detail-grid dt {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.task-detail-grid dd {
+  margin: 0;
+  color: #17212b;
+  font-weight: 800;
+}
+
 .tag-list {
   display: flex;
   gap: 8px;
@@ -512,6 +557,50 @@ small,
   gap: 10px;
 }
 
+.modal-backdrop {
+  display: grid;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.task-modal {
+  display: grid;
+  width: min(100%, 760px);
+  max-height: min(92vh, 860px);
+  gap: 18px;
+  overflow-y: auto;
+  border-radius: 8px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+}
+
+.modal-header,
+.modal-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.task-create-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.full-field {
+  grid-column: 1 / -1;
+}
+
+.modal-actions {
+  justify-content: flex-end;
+}
+
 @media (max-width: 900px) {
   .workspace-shell {
     grid-template-columns: 1fr;
@@ -538,7 +627,9 @@ small,
   .dashboard-grid,
   .detail-grid,
   .split-layout,
-  .board-filters {
+  .board-filters,
+  .task-create-form,
+  .task-detail-grid {
     grid-template-columns: 1fr;
   }
 }

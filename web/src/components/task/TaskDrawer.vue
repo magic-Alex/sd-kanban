@@ -50,6 +50,41 @@ async function submitComment() {
 
         <template v-if="task">
           <section class="drawer-section">
+            <h2>任务信息</h2>
+            <dl class="task-detail-grid">
+              <div>
+                <dt>类型</dt>
+                <dd>{{ task.taskType }}</dd>
+              </div>
+              <div>
+                <dt>优先级</dt>
+                <dd>{{ task.priority }}</dd>
+              </div>
+              <div>
+                <dt>负责人</dt>
+                <dd>{{ task.assignee?.nickname ?? '未分配' }}</dd>
+              </div>
+              <div>
+                <dt>故事点</dt>
+                <dd>{{ task.storyPoints ?? '-' }}</dd>
+              </div>
+              <div>
+                <dt>预计工时</dt>
+                <dd>{{ task.estimatedHours ?? '-' }}</dd>
+              </div>
+              <div>
+                <dt>截止日期</dt>
+                <dd>{{ task.dueDate ?? '-' }}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="drawer-section">
+            <h2>描述</h2>
+            <p>{{ task.description || '暂无描述' }}</p>
+          </section>
+
+          <section class="drawer-section">
             <h2>验收标准</h2>
             <p>{{ task.acceptanceCriteria || '暂无验收标准' }}</p>
           </section>

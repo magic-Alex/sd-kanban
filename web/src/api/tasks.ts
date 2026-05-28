@@ -34,6 +34,21 @@ export interface UpdateTaskPositionRequest {
   sortOrder: number
 }
 
+export interface CreateTaskRequest {
+  title: string
+  description?: string | null
+  taskType?: string | null
+  priority?: string | null
+  storyPoints?: number | null
+  estimatedHours?: number | null
+  dueDate?: string | null
+  acceptanceCriteria?: string | null
+  assigneeId?: number | null
+  sprintId?: number | null
+  columnId: number
+  tagIds?: number[]
+}
+
 export interface TaskComment {
   id: number
   taskId: number
@@ -56,6 +71,10 @@ export interface TaskActivity {
 
 export function fetchTask(taskId: number | string): Promise<TaskResponse> {
   return getData<TaskResponse>(`/tasks/${taskId}`)
+}
+
+export function createTask(projectId: number | string, request: CreateTaskRequest): Promise<TaskResponse> {
+  return postData<TaskResponse, CreateTaskRequest>(`/projects/${projectId}/tasks`, request)
 }
 
 export async function updateTaskPosition(

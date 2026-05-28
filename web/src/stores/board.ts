@@ -7,7 +7,7 @@ import {
   type MyTaskBoard,
   type TaskCard,
 } from '../api/board'
-import { updateTaskPosition } from '../api/tasks'
+import { createTask, updateTaskPosition, type CreateTaskRequest } from '../api/tasks'
 
 function cloneBoard(board: ProjectBoard | null): ProjectBoard | null {
   return board ? JSON.parse(JSON.stringify(board)) : null
@@ -62,6 +62,11 @@ export const useBoardStore = defineStore('board', {
       } finally {
         this.movingTaskId = null
       }
+    },
+    async createTask(projectId: number | string, request: CreateTaskRequest, filters: BoardQuery = {}) {
+      const task = await createTask(projectId, request)
+      await this.loadProjectBoard(projectId, filters)
+      return task
     },
     removeTask(taskId: number): TaskCard | null {
       if (!this.projectBoard) {

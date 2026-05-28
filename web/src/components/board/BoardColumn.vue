@@ -9,6 +9,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   openTask: [taskId: number]
   moveTask: [taskId: number, columnId: number, sortOrder: number]
+  createTask: [columnId: number]
 }>()
 
 function allowDrop(event: DragEvent) {
@@ -30,8 +31,12 @@ function dropTask(event: DragEvent) {
       <span class="column-swatch" :style="{ background: column.color }"></span>
       <h2>{{ column.name }}</h2>
       <small>{{ column.tasks.length }}</small>
+      <button class="column-add-button" type="button" :aria-label="`在 ${column.name} 新增任务`" @click="emit('createTask', column.id)">
+        +任务
+      </button>
     </header>
-    <div class="task-stack">
+    <div class="task-stack" :class="{ empty: column.tasks.length === 0 }">
+      <p v-if="column.tasks.length === 0" class="empty-column">暂无任务</p>
       <TaskCard
         v-for="task in column.tasks"
         :key="task.id"
