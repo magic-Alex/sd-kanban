@@ -27,6 +27,10 @@ function sortChecklistItems(items: TaskChecklistItem[]) {
   return [...items].sort((left, right) => left.sortOrder - right.sortOrder)
 }
 
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
+  return result.status === 'fulfilled' ? result.value : fallback
+}
+
 export const useTasksStore = defineStore('tasks', {
   state: () => ({
     activeTask: null as TaskResponse | null,
@@ -51,16 +55,21 @@ export const useTasksStore = defineStore('tasks', {
       this.actionError = null
       try {
         const task = await fetchTask(taskId)
-        const [comments, activities, checklistItems] = await Promise.all([
+        if (this.drawerOpen && this.openTaskRequestId === requestId) {
+          this.activeTask = task
+          this.comments = []
+          this.activities = []
+          this.checklistItems = []
+        }
+        const [comments, activities, checklistItems] = await Promise.allSettled([
           fetchTaskComments(taskId),
           fetchTaskActivities(taskId),
           fetchChecklistItems(taskId),
         ])
         if (this.drawerOpen && this.openTaskRequestId === requestId) {
-          this.activeTask = task
-          this.comments = comments
-          this.activities = activities
-          this.checklistItems = checklistItems
+          this.comments = settledValue(comments, [])
+          this.activities = settledValue(activities, [])
+          this.checklistItems = settledValue(checklistItems, [])
         }
       } catch (error) {
         if (this.drawerOpen && this.openTaskRequestId === requestId) {
@@ -180,14 +189,22 @@ export const useTasksStore = defineStore('tasks', {
       if (!this.activeTask) {
         return
       }
-      const item = await createChecklistItem(this.activeTask.id, title)
+      const taskId = this.activeTask.id
+      const item = await createChecklistItem(taskId, title)
+      if (!this.isCurrentActionTask(taskId)) {
+        return
+      }
       this.checklistItems = sortChecklistItems([...this.checklistItems, item])
     },
     async renameChecklistItem(itemId: number, title: string) {
       if (!this.activeTask) {
         return
       }
-      const item = await updateChecklistItem(this.activeTask.id, itemId, title)
+      const taskId = this.activeTask.id
+      const item = await updateChecklistItem(taskId, itemId, title)
+      if (!this.isCurrentActionTask(taskId)) {
+        return
+      }
       this.checklistItems = sortChecklistItems(
         this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
       )
@@ -196,7 +213,11 @@ export const useTasksStore = defineStore('tasks', {
       if (!this.activeTask) {
         return
       }
-      const item = await toggleChecklistItemApi(this.activeTask.id, itemId)
+      const taskId = this.activeTask.id
+      const item = await toggleChecklistItemApi(taskId, itemId)
+      if (!this.isCurrentActionTask(taskId)) {
+        return
+      }
       this.checklistItems = sortChecklistItems(
         this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
       )
@@ -205,13 +226,18 @@ export const useTasksStore = defineStore('tasks', {
       if (!this.activeTask) {
         return
       }
-      await deleteChecklistItem(this.activeTask.id, itemId)
+      const taskId = this.activeTask.id
+      await deleteChecklistItem(taskId, itemId)
+      if (!this.isCurrentActionTask(taskId)) {
+        return
+      }
       this.checklistItems = this.checklistItems.filter((item) => item.id !== itemId)
     },
     async moveChecklistItem(itemId: number, direction: 'up' | 'down') {
       if (!this.activeTask) {
         return
       }
+      const taskId = this.activeTask.id
       const items = sortChecklistItems(this.checklistItems)
       const currentIndex = items.findIndex((item) => item.id === itemId)
       const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
@@ -220,7 +246,10 @@ export const useTasksStore = defineStore('tasks', {
       }
       const [item] = items.splice(currentIndex, 1)
       items.splice(nextIndex, 0, item)
-      const reordered = await reorderChecklistItems(this.activeTask.id, items.map((candidate) => candidate.id))
+      const reordered = await reorderChecklistItems(taskId, items.map((candidate) => candidate.id))
+      if (!this.isCurrentActionTask(taskId)) {
+        return
+      }
       this.checklistItems = sortChecklistItems(reordered)
     },
   },

@@ -13,18 +13,28 @@ export const useNotificationsStore = defineStore('notifications', {
     unreadCount: 0,
     loading: false,
     error: null as string | null,
+    loadRequestId: 0,
   }),
   actions: {
     async load(status: 'all' | 'unread' = 'all') {
+      const requestId = this.loadRequestId + 1
+      this.loadRequestId = requestId
       this.loading = true
       this.error = null
       try {
-        this.items = await fetchNotifications(status)
+        const items = await fetchNotifications(status)
+        if (this.loadRequestId === requestId) {
+          this.items = items
+        }
       } catch (error) {
-        this.error = '通知加载失败'
+        if (this.loadRequestId === requestId) {
+          this.error = '通知加载失败'
+        }
         throw error
       } finally {
-        this.loading = false
+        if (this.loadRequestId === requestId) {
+          this.loading = false
+        }
       }
     },
     async loadUnreadCount() {

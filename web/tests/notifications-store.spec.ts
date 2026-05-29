@@ -15,6 +15,16 @@ vi.mock('../src/api/notifications', () => ({
   markAllNotificationsRead: vi.fn(),
 }))
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('notifications store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -34,5 +44,28 @@ describe('notifications store', () => {
 
     expect(notifications.items).toHaveLength(1)
     expect(notifications.unreadCount).toBe(1)
+  })
+
+  it('keeps the latest notification load result when requests resolve out of order', async () => {
+    const unread = deferred<Awaited<ReturnType<typeof fetchNotifications>>>()
+    const all = deferred<Awaited<ReturnType<typeof fetchNotifications>>>()
+    vi.mocked(fetchNotifications)
+      .mockReturnValueOnce(unread.promise)
+      .mockReturnValueOnce(all.promise)
+    const notifications = useNotificationsStore()
+
+    const unreadPromise = notifications.load('unread')
+    const allPromise = notifications.load('all')
+    all.resolve([{ id: 2, actor: null, projectId: 7, taskId: 12, type: 'COMMENT', title: 'All notification', content: 'All result', read: true, createdAt: '2026-05-29T10:01:00', readAt: '2026-05-29T10:02:00' }])
+    await allPromise
+    unread.resolve([{ id: 1, actor: null, projectId: 7, taskId: 12, type: 'MENTION', title: 'Unread notification', content: 'Unread result', read: false, createdAt: '2026-05-29T10:00:00', readAt: null }])
+    await unreadPromise
+
+    expect(fetchNotifications).toHaveBeenNthCalledWith(1, 'unread')
+    expect(fetchNotifications).toHaveBeenNthCalledWith(2, 'all')
+    expect(notifications.items).toHaveLength(1)
+    expect(notifications.items[0].title).toBe('All notification')
+    expect(notifications.loading).toBe(false)
+    expect(notifications.error).toBeNull()
   })
 })
