@@ -3,6 +3,7 @@ package com.sdkanban.task.service.impl;
 import com.sdkanban.board.entity.BoardColumn;
 import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
+import com.sdkanban.notification.service.NotificationService;
 import com.sdkanban.project.entity.ProjectMember;
 import com.sdkanban.project.entity.ProjectMemberId;
 import com.sdkanban.project.repository.ProjectMemberRepository;
@@ -41,10 +42,15 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Conditional(ProjectPersistenceAvailableCondition.class)
@@ -70,6 +76,7 @@ public class TaskServiceImpl implements TaskService {
     private final BoardColumnRepository boardColumnRepository;
     private final SprintRepository sprintRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public TaskServiceImpl(
         TaskRepository taskRepository,
@@ -81,7 +88,8 @@ public class TaskServiceImpl implements TaskService {
         ProjectMemberRepository projectMemberRepository,
         BoardColumnRepository boardColumnRepository,
         SprintRepository sprintRepository,
-        UserRepository userRepository
+        UserRepository userRepository,
+        NotificationService notificationService
     ) {
         this.taskRepository = taskRepository;
         this.taskTagRepository = taskTagRepository;
@@ -93,6 +101,7 @@ public class TaskServiceImpl implements TaskService {
         this.boardColumnRepository = boardColumnRepository;
         this.sprintRepository = sprintRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -167,7 +176,11 @@ public class TaskServiceImpl implements TaskService {
         }
         if (request.assigneeId() != null) {
             validateAssignee(task.getProjectId(), request.assigneeId());
+            boolean assigneeChanged = !Objects.equals(task.getAssigneeId(), request.assigneeId());
             change(task, currentUserId, "assigneeId", task.getAssigneeId(), request.assigneeId(), task::changeAssigneeId);
+            if (assigneeChanged) {
+                notifyAssignee(task, currentUserId, request.assigneeId());
+            }
         }
         if (request.sprintId() != null) {
             validateSprint(task.getProjectId(), request.sprintId());
@@ -221,6 +234,13 @@ public class TaskServiceImpl implements TaskService {
         if (!task.isArchived()) {
             task.archive();
             recordActivity(task, currentUserId, "TASK_ARCHIVED", null, null, null);
+            notifyTaskStakeholders(
+                task,
+                currentUserId,
+                "TASK_ARCHIVED",
+                "任务已归档",
+                "任务「" + task.getTitle() + "」已归档"
+            );
         }
         return toTaskResponse(task);
     }
@@ -252,6 +272,13 @@ public class TaskServiceImpl implements TaskService {
             task.changeSortOrder(taskRepository.maxSortOrderInColumn(task.getProjectId(), task.getColumnId()) + 1);
             task.restore();
             recordActivity(task, currentUserId, "TASK_RESTORED", null, null, null);
+            notifyTaskStakeholders(
+                task,
+                currentUserId,
+                "TASK_RESTORED",
+                "任务已恢复",
+                "任务「" + task.getTitle() + "」已恢复"
+            );
         }
         return toTaskResponse(task);
     }
@@ -301,7 +328,58 @@ public class TaskServiceImpl implements TaskService {
             requiredComment(request.content())
         ));
         recordActivity(task, currentUserId, "COMMENT_ADDED", null, null, null);
+        notificationService.notifyUsers(
+            mentionedMemberIds(task.getProjectId(), comment.getContent()),
+            currentUserId,
+            task.getProjectId(),
+            task.getId(),
+            "MENTION",
+            "有人在评论中提到了你",
+            "任务「" + task.getTitle() + "」的评论提到了你"
+        );
         return TaskCommentResponse.from(comment, userSummary(currentUserId));
+    }
+
+    private void notifyAssignee(Task task, Long actorId, Long assigneeId) {
+        notificationService.notifyUsers(
+            List.of(assigneeId),
+            actorId,
+            task.getProjectId(),
+            task.getId(),
+            "TASK_ASSIGNED",
+            "任务分配给你",
+            "任务「" + task.getTitle() + "」已分配给你"
+        );
+    }
+
+    private void notifyTaskStakeholders(Task task, Long actorId, String type, String title, String content) {
+        notificationService.notifyUsers(
+            Stream.of(task.getAssigneeId(), task.getCreatorId()).filter(Objects::nonNull).toList(),
+            actorId,
+            task.getProjectId(),
+            task.getId(),
+            type,
+            title,
+            content
+        );
+    }
+
+    private Set<Long> mentionedMemberIds(Long projectId, String content) {
+        Set<String> nicknames = Pattern.compile("@([\\p{L}\\p{N}_\\-\\u4e00-\\u9fa5]+)")
+            .matcher(content)
+            .results()
+            .map(match -> match.group(1))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (nicknames.isEmpty()) {
+            return Set.of();
+        }
+        return projectMemberRepository.findByIdProjectIdOrderByCreatedAtAsc(projectId).stream()
+            .map(ProjectMember::getUserId)
+            .map(userRepository::findById)
+            .flatMap(Optional::stream)
+            .filter(user -> nicknames.contains(user.getNickname()))
+            .map(User::getId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private Task requireTask(Long taskId) {

@@ -35,6 +35,7 @@ class TaskControllerTest {
 
     @BeforeEach
     void deleteData() {
+        jdbcTemplate.update("DELETE FROM notifications");
         jdbcTemplate.update("DELETE FROM task_activities");
         jdbcTemplate.update("DELETE FROM task_comments");
         jdbcTemplate.update("DELETE FROM task_tag_links");
@@ -547,6 +548,98 @@ class TaskControllerTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+    }
+
+    @Test
+    void commentMentionCreatesNotificationForProjectMember() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Mention task");
+
+        mockMvc.perform(post("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "请 @Member 看一下这个任务"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'MENTION' AND task_id = ?",
+            Integer.class,
+            fixture.member().id(),
+            taskId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void assignmentCreatesNotificationForNewAssignee() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Assign task");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "assigneeId": %d
+                    }
+                    """.formatted(fixture.member().id())))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'TASK_ASSIGNED' AND task_id = ?",
+            Integer.class,
+            fixture.member().id(),
+            taskId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void archiveAndRestoreNotifyTaskStakeholdersExceptActor() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.owner().token(),
+            fixture.projectId(),
+            firstColumnId(fixture.projectId()),
+            "Archive notify",
+            fixture.member().id()
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token()))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'TASK_ARCHIVED' AND task_id = ?",
+            Integer.class,
+            fixture.member().id(),
+            taskId
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'TASK_ARCHIVED' AND task_id = ?",
+            Integer.class,
+            fixture.owner().id(),
+            taskId
+        )).isZero();
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/restore", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'TASK_RESTORED' AND task_id = ?",
+            Integer.class,
+            fixture.owner().id(),
+            taskId
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'TASK_RESTORED' AND task_id = ?",
+            Integer.class,
+            fixture.member().id(),
+            taskId
+        )).isZero();
     }
 
     private Fixture fixtureWithOwnerAndMember() throws Exception {
