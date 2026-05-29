@@ -5,7 +5,14 @@ import ProjectBoardView from '../src/views/ProjectBoardView.vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 import { fetchProjectBoard } from '../src/api/board'
 import { fetchProjectMembers } from '../src/api/projects'
-import { createTask, fetchTask, updateTask, updateTaskPosition } from '../src/api/tasks'
+import {
+  createTask,
+  fetchArchivedTasks,
+  fetchTask,
+  restoreTask,
+  updateTask,
+  updateTaskPosition,
+} from '../src/api/tasks'
 import { useBoardStore } from '../src/stores/board'
 import { useTasksStore } from '../src/stores/tasks'
 
@@ -25,7 +32,9 @@ vi.mock('../src/api/projects', () => ({
 vi.mock('../src/api/tasks', () => ({
   addTaskComment: vi.fn(),
   createTask: vi.fn(),
+  fetchArchivedTasks: vi.fn(),
   fetchTask: vi.fn(),
+  restoreTask: vi.fn(),
   updateTask: vi.fn(),
   updateTaskPosition: vi.fn(),
 }))
@@ -81,6 +90,15 @@ const createdTask = {
   updatedAt: '2026-05-28T10:00:00',
 }
 
+const archivedTask = {
+  ...createdTask,
+  id: 77,
+  title: 'Archived task',
+  assignee: null,
+  priority: 'LOW',
+  taskType: 'TASK',
+}
+
 describe('ProjectBoardView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
@@ -88,13 +106,17 @@ describe('ProjectBoardView', () => {
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchProjectMembers).mockReset()
     vi.mocked(createTask).mockReset()
+    vi.mocked(fetchArchivedTasks).mockReset()
     vi.mocked(fetchTask).mockReset()
+    vi.mocked(restoreTask).mockReset()
     vi.mocked(updateTask).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
     vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
     vi.mocked(fetchProjectMembers).mockResolvedValue(members)
     vi.mocked(createTask).mockResolvedValue(createdTask)
+    vi.mocked(fetchArchivedTasks).mockResolvedValue([archivedTask])
     vi.mocked(fetchTask).mockResolvedValue(createdTask)
+    vi.mocked(restoreTask).mockResolvedValue(archivedTask)
     vi.mocked(updateTask).mockResolvedValue(createdTask)
     vi.mocked(updateTaskPosition).mockResolvedValue(undefined)
   })
@@ -167,6 +189,26 @@ describe('ProjectBoardView', () => {
 
     expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '0' })
     expect((assigneeFilter.element as HTMLSelectElement).value).toBe('0')
+  })
+
+  it('loads archived tasks and restores an archived task from the archived view', async () => {
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+
+    expect(fetchArchivedTasks).toHaveBeenCalledWith('7', {})
+    expect(document.body.textContent).toContain('Archived task')
+
+    await wrapper.get('[aria-label="恢复任务 Archived task"]').trigger('click')
+    await flushPromises()
+
+    expect(restoreTask).toHaveBeenCalledWith(77)
+    expect(fetchProjectBoard).toHaveBeenCalledTimes(2)
+    expect(document.body.textContent).not.toContain('Archived task')
   })
 
   it('does not reopen the originally active task after completing if the drawer active task changes', async () => {
