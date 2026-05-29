@@ -35,6 +35,7 @@ const isOverdue = computed(() => {
     <div class="task-card-meta">
       <small v-if="task.storyPoints !== null">{{ task.storyPoints }} SP</small>
       <small v-if="task.dueDate" :class="{ overdue: isOverdue }">{{ task.dueDate }}</small>
+      <small v-if="task.checklistTotalCount > 0">清单 {{ task.checklistDoneCount }}/{{ task.checklistTotalCount }}</small>
     </div>
   </article>
 </template>

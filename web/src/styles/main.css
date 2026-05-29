@@ -564,6 +564,53 @@ small,
   font-weight: 700;
 }
 
+.task-checklist {
+  gap: 12px;
+}
+
+.checklist-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.checklist-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f6f9fb;
+}
+
+.checklist-item label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: #17212b;
+  font-weight: 700;
+}
+
+.checklist-item span {
+  overflow-wrap: anywhere;
+}
+
+.checklist-item label.done span {
+  color: #667085;
+  text-decoration: line-through;
+}
+
 .drawer-list {
   display: grid;
   gap: 10px;

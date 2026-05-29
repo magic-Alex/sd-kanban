@@ -1,22 +1,31 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import type { BoardColumn } from '../../api/board'
+import type { TaskChecklistItem } from '../../api/checklist'
 import type { ProjectMember } from '../../api/projects'
 import type { TaskActivity, TaskComment, TaskResponse, UpdateTaskRequest } from '../../api/tasks'
+import TaskChecklist from './TaskChecklist.vue'
 
 const props = defineProps<{
   open: boolean
   task: TaskResponse | null
   comments: TaskComment[]
   activities: TaskActivity[]
+  checklistItems: TaskChecklistItem[]
   members: ProjectMember[]
   columns: BoardColumn[]
   actionLoading?: boolean
   actionError?: string | null
+  archived?: boolean
   addComment: (content: string) => Promise<void> | void
+  addChecklistItem: (title: string) => Promise<void> | void
+  toggleChecklistItem: (itemId: number) => Promise<void> | void
+  renameChecklistItem: (itemId: number, title: string) => Promise<void> | void
+  deleteChecklistItem: (itemId: number) => Promise<void> | void
   saveTask: (request: UpdateTaskRequest) => Promise<void> | void
   completeTask: () => Promise<void> | void
   archiveTask: () => Promise<void> | void
+  restoreTask?: () => Promise<void> | void
   deleteTask: () => Promise<void> | void
 }>()
 
@@ -177,6 +186,21 @@ async function archiveCurrentTask() {
   }
 }
 
+async function restoreCurrentTask() {
+  if (props.actionLoading || !props.restoreTask) {
+    return
+  }
+  editError.value = null
+  const taskId = props.task?.id
+  try {
+    await props.restoreTask()
+  } catch (error) {
+    if (props.open && props.task?.id === taskId) {
+      editError.value = '任务恢复失败，请重试'
+    }
+  }
+}
+
 async function deleteCurrentTask() {
   if (props.actionLoading || !window.confirm('确认删除该任务？删除后将从看板中隐藏。')) {
     return
@@ -239,6 +263,17 @@ async function submitComment() {
               标记完成
             </button>
             <button
+              v-if="archived"
+              class="secondary-button"
+              type="button"
+              aria-label="恢复任务"
+              :disabled="!task || actionLoading || !restoreTask"
+              @click="restoreCurrentTask"
+            >
+              恢复
+            </button>
+            <button
+              v-else
               class="secondary-button"
               type="button"
               aria-label="归档任务"
@@ -354,6 +389,15 @@ async function submitComment() {
             </dl>
           </section>
 
+          <TaskChecklist
+            :items="checklistItems"
+            :action-loading="actionLoading"
+            :add-item="addChecklistItem"
+            :toggle-item="toggleChecklistItem"
+            :rename-item="renameChecklistItem"
+            :delete-item="deleteChecklistItem"
+          />
+
           <section class="drawer-section">
             <h2>描述</h2>
             <p>{{ task.description || '暂无描述' }}</p>
@@ -398,7 +442,7 @@ async function submitComment() {
             <ul class="drawer-list">
               <li v-for="activity in activities" :key="activity.id">
                 <strong>{{ activity.actor?.nickname ?? '系统' }}</strong>
-                <p>{{ activity.actionType }} {{ activity.fieldName }} {{ activity.oldValue }} -> {{ activity.newValue }}</p>
+                <p>{{ activity.displayText }}</p>
               </li>
             </ul>
           </section>

@@ -38,12 +38,30 @@ function taskFixture(overrides = {}) {
   }
 }
 
+function checklistItemFixture(overrides = {}) {
+  return {
+    id: 1,
+    taskId: 12,
+    projectId: 7,
+    title: 'Write tests',
+    done: true,
+    sortOrder: 0,
+    createdBy: userFixture(),
+    completedBy: userFixture(),
+    completedAt: '2026-05-21T10:20:00',
+    createdAt: '2026-05-21T10:00:00',
+    updatedAt: '2026-05-21T10:20:00',
+    ...overrides,
+  }
+}
+
 function drawerProps(overrides = {}) {
   return {
     open: true,
     task: taskFixture(),
     comments: [],
     activities: [],
+    checklistItems: [],
     members: [
       {
         user: userFixture({ id: 3, account: 'mei', nickname: 'Mei', email: 'mei@sd-robot.com' }),
@@ -60,6 +78,10 @@ function drawerProps(overrides = {}) {
     completeTask: vi.fn(),
     archiveTask: vi.fn(),
     deleteTask: vi.fn(),
+    addChecklistItem: vi.fn(),
+    toggleChecklistItem: vi.fn(),
+    renameChecklistItem: vi.fn(),
+    deleteChecklistItem: vi.fn(),
     actionLoading: false,
     actionError: null,
     ...overrides,
@@ -117,6 +139,7 @@ describe('TaskDrawer', () => {
             fieldName: 'priority',
             oldValue: 'MEDIUM',
             newValue: 'HIGH',
+            displayText: 'Alex 将优先级从 MEDIUM 改为 HIGH',
             createdAt: '2026-05-21T10:12:00',
           },
         ],
@@ -127,8 +150,55 @@ describe('TaskDrawer', () => {
     expect(document.body.textContent).toContain('Cards can move between columns')
     expect(document.body.textContent).toContain('Frontend')
     expect(document.body.textContent).toContain('Please keep drag updates optimistic.')
-    expect(document.body.textContent).toContain('priority')
+    expect(document.body.textContent).toContain('Alex 将优先级从 MEDIUM 改为 HIGH')
     expect(document.body.textContent).toContain('HIGH')
+  })
+
+  it('renders checklist progress and toggles checklist items', async () => {
+    const toggleChecklistItem = vi.fn()
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        checklistItems: [
+          checklistItemFixture({ id: 1, title: 'Write tests', done: true, sortOrder: 0 }),
+          checklistItemFixture({ id: 2, title: 'Build UI', done: false, sortOrder: 1 }),
+        ],
+        toggleChecklistItem,
+      }),
+    })
+
+    expect(document.body.textContent).toContain('检查清单 1/2')
+    expect(document.body.textContent).toContain('Write tests')
+    expect(document.body.textContent).toContain('Build UI')
+
+    ;(getByLabel('切换检查项 Build UI') as HTMLInputElement).click()
+    await flushPromises()
+
+    expect(toggleChecklistItem).toHaveBeenCalledWith(2)
+  })
+
+  it('renders activity display text without leaking raw action types', () => {
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        activities: [
+          {
+            id: 3,
+            taskId: 12,
+            actor: userFixture(),
+            actionType: 'TASK_CREATED',
+            fieldName: null,
+            oldValue: null,
+            newValue: null,
+            displayText: 'Alex 创建了任务',
+            createdAt: '2026-05-21T10:12:00',
+          },
+        ],
+      }),
+    })
+
+    expect(document.body.textContent).toContain('Alex 创建了任务')
+    expect(document.body.textContent).not.toContain('TASK_CREATED')
   })
 
   it('keeps the draft and shows an error when comment save fails', async () => {
@@ -151,8 +221,8 @@ describe('TaskDrawer', () => {
       },
     })
 
-    const textarea = document.body.querySelector('textarea') as HTMLTextAreaElement
-    const form = document.body.querySelector('form') as HTMLFormElement
+    const textarea = document.body.querySelector('.comment-form textarea') as HTMLTextAreaElement
+    const form = document.body.querySelector('.comment-form') as HTMLFormElement
 
     textarea.value = 'Keep this comment'
     textarea.dispatchEvent(new Event('input'))
