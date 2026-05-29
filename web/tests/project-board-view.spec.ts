@@ -310,6 +310,84 @@ describe('ProjectBoardView', () => {
     expect(document.body.querySelector('[aria-label="恢复任务"]')).not.toBeNull()
   })
 
+  it('keeps a current board task drawer in board mode when opening an archived task fails', async () => {
+    vi.mocked(fetchProjectBoard).mockResolvedValue({
+      ...projectBoard,
+      columns: [
+        {
+          ...projectBoard.columns[0],
+          tasks: [currentBoardTask],
+        },
+        projectBoard.columns[1],
+      ],
+    })
+    vi.mocked(fetchTask).mockImplementation(async (taskId) => {
+      if (Number(taskId) === 77) {
+        throw new Error('archived task load failed')
+      }
+      return { ...createdTask, id: 88, title: 'Current board task' }
+    })
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('article.task-card').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Current board task')
+    expect(document.body.querySelector('[aria-label="归档任务"]')).not.toBeNull()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('button.archived-task-title').trigger('click')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Current board task')
+    expect(document.body.querySelector('[aria-label="恢复任务"]')).toBeNull()
+    expect(document.body.querySelector('[aria-label="归档任务"]')).not.toBeNull()
+  })
+
+  it('keeps an archived task drawer in archived mode when opening a current board task fails', async () => {
+    vi.mocked(fetchProjectBoard).mockResolvedValue({
+      ...projectBoard,
+      columns: [
+        {
+          ...projectBoard.columns[0],
+          tasks: [currentBoardTask],
+        },
+        projectBoard.columns[1],
+      ],
+    })
+    vi.mocked(fetchTask).mockImplementation(async (taskId) => {
+      if (Number(taskId) === 88) {
+        throw new Error('current task load failed')
+      }
+      return archivedTask
+    })
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('button.archived-task-title').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Archived task')
+    expect(document.body.querySelector('[aria-label="恢复任务"]')).not.toBeNull()
+
+    const currentBoardButton = wrapper.findAll('button').find((button) => button.text().includes('当前看板'))
+    expect(currentBoardButton?.exists()).toBe(true)
+    await currentBoardButton?.trigger('click')
+    await flushPromises()
+    await wrapper.get('article.task-card').trigger('click')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Archived task')
+    expect(document.body.querySelector('[aria-label="归档任务"]')).toBeNull()
+    expect(document.body.querySelector('[aria-label="恢复任务"]')).not.toBeNull()
+  })
+
   it('removes a restored archived task when board refresh fails and reports refresh failure', async () => {
     vi.mocked(fetchProjectBoard)
       .mockResolvedValueOnce(projectBoard)

@@ -146,13 +146,25 @@ async function archiveActiveTask() {
 }
 
 async function openBoardTask(taskId: number) {
-  activeDrawerArchived.value = false
-  await tasks.openTask(taskId)
+  try {
+    await tasks.openTask(taskId)
+    if (tasks.activeTask?.id === taskId) {
+      activeDrawerArchived.value = false
+    }
+  } catch (error) {
+    // Keep the previous drawer task and source if the replacement task cannot load.
+  }
 }
 
 async function openArchivedTask(taskId: number) {
-  activeDrawerArchived.value = true
-  await tasks.openTask(taskId)
+  try {
+    await tasks.openTask(taskId)
+    if (tasks.activeTask?.id === taskId) {
+      activeDrawerArchived.value = true
+    }
+  } catch (error) {
+    // Keep the previous drawer task and source if the replacement task cannot load.
+  }
 }
 
 async function restoreArchivedTask(taskId: number) {
