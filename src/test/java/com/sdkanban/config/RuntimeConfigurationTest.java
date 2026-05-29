@@ -24,6 +24,6 @@ class RuntimeConfigurationTest {
         assertThat(application.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("${JPA_DDL_AUTO:validate}");
         assertThat(application.getProperty("app.jwt.secret")).isEqualTo("${JWT_SECRET:sd-kanban-local-development-secret-change-before-production}");
         assertThat(application.getProperty("app.jwt.expires-minutes")).isEqualTo("${JWT_EXPIRES_MINUTES:720}");
-        assertThat(application.getProperty("app.cors.allowed-origins")).isEqualTo("${CORS_ALLOWED_ORIGINS:http://localhost:8102}");
+        assertThat(application.getProperty("app.cors.allowed-origins")).isEqualTo("${CORS_ALLOWED_ORIGINS:http://localhost:8102,http://127.0.0.1:8102}");
     }
 }
