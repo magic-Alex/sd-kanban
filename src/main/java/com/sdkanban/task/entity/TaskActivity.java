@@ -54,4 +54,40 @@ public class TaskActivity {
         this.oldValue = oldValue;
         this.newValue = newValue;
     }
+
+    public Long getId() {
+        return id;
+    }
+
+    public Long getTaskId() {
+        return taskId;
+    }
+
+    public Long getProjectId() {
+        return projectId;
+    }
+
+    public Long getActorId() {
+        return actorId;
+    }
+
+    public String getActionType() {
+        return actionType;
+    }
+
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public String getOldValue() {
+        return oldValue;
+    }
+
+    public String getNewValue() {
+        return newValue;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
 }
