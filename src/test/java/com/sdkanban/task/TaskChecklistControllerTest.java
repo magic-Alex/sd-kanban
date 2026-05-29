@@ -128,6 +128,75 @@ class TaskChecklistControllerTest {
             .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
     }
 
+    @Test
+    void blankCreateAndUpdateTitlesReturnChecklistTitleRequired() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Checklist task");
+        long itemId = createChecklistItem(fixture.member().token(), taskId, "Existing");
+
+        mockMvc.perform(post("/api/tasks/{taskId}/checklist", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "   "
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHECKLIST_TITLE_REQUIRED"));
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/{itemId}", taskId, itemId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "   "
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHECKLIST_TITLE_REQUIRED"));
+    }
+
+    @Test
+    void invalidReorderPayloadReturnsChecklistReorderInvalid() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Checklist task");
+        long itemId = createChecklistItem(fixture.member().token(), taskId, "First");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/reorder", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "itemIds": []
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHECKLIST_REORDER_INVALID"));
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/reorder", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "itemIds": null
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHECKLIST_REORDER_INVALID"));
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/reorder", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "itemIds": [%d, %d]
+                    }
+                    """.formatted(itemId, itemId)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHECKLIST_REORDER_INVALID"));
+    }
+
     private Fixture fixtureWithOwnerAndMember() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         RegisteredUser member = register("member", "Member");
