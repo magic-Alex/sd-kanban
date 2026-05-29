@@ -6,10 +6,10 @@
         <button
           type="button"
           class="secondary-button"
-          :disabled="loading || !items.some((item) => !item.read)"
+          :disabled="loading || markAllReadPending || !items.some((item) => !item.read)"
           @click="$emit('markAllRead')"
         >
-          全部已读
+          {{ markAllReadPending ? '处理中...' : '全部已读' }}
         </button>
         <button type="button" class="icon-button" aria-label="关闭通知" @click="$emit('close')">
           ×
@@ -47,9 +47,10 @@
             v-if="!item.read"
             type="button"
             class="link-button"
+            :disabled="markReadPendingIds.includes(item.id)"
             @click="$emit('markRead', item.id)"
           >
-            标记已读
+            {{ markReadPendingIds.includes(item.id) ? '处理中...' : '标记已读' }}
           </button>
         </div>
       </li>
@@ -60,12 +61,19 @@
 <script setup lang="ts">
 import type { NotificationItem } from '../../api/notifications'
 
-defineProps<{
+withDefaults(defineProps<{
   open: boolean
   items: NotificationItem[]
   loading?: boolean
   error?: string | null
-}>()
+  markReadPendingIds?: number[]
+  markAllReadPending?: boolean
+}>(), {
+  loading: false,
+  error: null,
+  markReadPendingIds: () => [],
+  markAllReadPending: false,
+})
 
 defineEmits<{
   close: []

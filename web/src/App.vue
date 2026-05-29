@@ -26,6 +26,8 @@
       :items="notifications.items"
       :loading="notifications.loading"
       :error="notifications.error"
+      :mark-read-pending-ids="notifications.markReadPendingIds"
+      :mark-all-read-pending="notifications.markAllReadPending"
       @close="notificationPanelOpen = false"
       @mark-read="markNotificationRead"
       @mark-all-read="markAllNotificationsRead"
@@ -45,28 +47,48 @@ const router = useRouter()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const notificationPanelOpen = ref(false)
+const openNotificationsRequestId = ref(0)
+
+function canUseNotifications() {
+  return !router.currentRoute.value.meta.public && auth.isAuthenticated
+}
 
 onMounted(() => {
-  if (!router.currentRoute.value.meta.public && auth.isAuthenticated) {
+  if (canUseNotifications()) {
     void notifications.loadUnreadCount()
   }
 })
 
 async function openNotifications() {
+  const requestId = openNotificationsRequestId.value + 1
+  openNotificationsRequestId.value = requestId
   notificationPanelOpen.value = true
   await notifications.load('all')
+  if (openNotificationsRequestId.value !== requestId || !canUseNotifications()) {
+    return
+  }
   await notifications.loadUnreadCount()
 }
 
 async function markNotificationRead(notificationId: number) {
+  if (!canUseNotifications()) {
+    return
+  }
   await notifications.markRead(notificationId)
 }
 
 async function markAllNotificationsRead() {
+  if (!canUseNotifications()) {
+    return
+  }
   await notifications.markAllRead()
 }
 
 async function openNotificationTask(taskId: number) {
+  if (!canUseNotifications()) {
+    notificationPanelOpen.value = false
+    return
+  }
   const item = notifications.items.find((notification) => notification.taskId === taskId)
   if (item && !item.read) {
     await notifications.markRead(item.id)
@@ -80,6 +102,7 @@ async function openNotificationTask(taskId: number) {
 }
 
 async function logout() {
+  openNotificationsRequestId.value += 1
   notificationPanelOpen.value = false
   auth.logout()
   await router.replace('/login')

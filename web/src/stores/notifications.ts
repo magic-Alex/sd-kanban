@@ -14,6 +14,8 @@ export const useNotificationsStore = defineStore('notifications', {
     loading: false,
     error: null as string | null,
     loadRequestId: 0,
+    unreadCountRequestId: 0,
+    unreadCountVersion: 0,
     markReadPendingIds: [] as number[],
     markAllReadPending: false,
   }),
@@ -39,11 +41,18 @@ export const useNotificationsStore = defineStore('notifications', {
       }
     },
     async loadUnreadCount() {
+      const requestId = this.unreadCountRequestId + 1
+      const version = this.unreadCountVersion
+      this.unreadCountRequestId = requestId
       try {
         const result = await fetchUnreadNotificationCount()
-        this.unreadCount = result.count
+        if (this.unreadCountRequestId === requestId && this.unreadCountVersion === version) {
+          this.unreadCount = result.count
+        }
       } catch (error) {
-        this.error = '通知加载失败'
+        if (this.unreadCountRequestId === requestId && this.unreadCountVersion === version) {
+          this.error = '通知加载失败'
+        }
       }
     },
     async markRead(notificationId: number) {
@@ -70,6 +79,8 @@ export const useNotificationsStore = defineStore('notifications', {
       this.markAllReadPending = true
       try {
         await markAllNotificationsRead()
+        this.unreadCountVersion += 1
+        this.unreadCountRequestId += 1
         this.items = this.items.map((item) => ({
           ...item,
           read: true,

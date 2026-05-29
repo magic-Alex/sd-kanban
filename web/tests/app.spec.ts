@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../src/App.vue'
-import router from '../src/router'
 import { fetchNotifications, fetchUnreadNotificationCount } from '../src/api/notifications'
+import { useAuthStore } from '../src/stores/auth'
 import { useNotificationsStore } from '../src/stores/notifications'
 
 vi.mock('../src/api/dashboard', () => ({
@@ -26,12 +27,60 @@ vi.mock('../src/api/notifications', () => ({
   markAllNotificationsRead: vi.fn(),
 }))
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
+function authenticateTestUser() {
+  const auth = useAuthStore()
+  auth.token = 'jwt-token'
+  auth.user = { id: 1, account: 'alex', nickname: 'Alex' }
+}
+
+function createTestRouter() {
+  const testRouter = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', name: 'dashboard', component: { template: '<main />' }, meta: { requiresAuth: true } },
+      { path: '/login', name: 'login', component: { template: '<main />' }, meta: { public: true } },
+      { path: '/projects', name: 'projects', component: { template: '<main />' }, meta: { requiresAuth: true } },
+      { path: '/projects/:projectId/board', name: 'project-board', component: { template: '<main />' }, meta: { requiresAuth: true } },
+      { path: '/my-tasks', name: 'my-tasks', component: { template: '<main />' }, meta: { requiresAuth: true } },
+    ],
+  })
+  testRouter.beforeEach((to) => {
+    const auth = useAuthStore()
+    if (to.meta.requiresAuth && !auth.isAuthenticated) {
+      return {
+        name: 'login',
+        query: { redirect: to.fullPath },
+      }
+    }
+    if (to.name === 'login' && auth.isAuthenticated) {
+      return { name: 'dashboard' }
+    }
+    return true
+  })
+  return testRouter
+}
+
 describe('app shell', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.mocked(fetchNotifications).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockResolvedValue({ count: 0 })
+  })
+
+  afterEach(async () => {
+    useAuthStore().logout()
+    localStorage.clear()
   })
 
   it('renders workspace navigation for authenticated users', async () => {
@@ -42,8 +91,9 @@ describe('app shell', () => {
     )
     const pinia = createPinia()
     setActivePinia(pinia)
-    router.push('/')
-    await router.isReady()
+    authenticateTestUser()
+    const router = createTestRouter()
+    await router.push('/')
 
     const wrapper = mount(App, {
       global: {
@@ -83,10 +133,11 @@ describe('app shell', () => {
     ])
     const pinia = createPinia()
     setActivePinia(pinia)
+    authenticateTestUser()
     const notifications = useNotificationsStore()
     notifications.unreadCount = 2
-    router.push('/')
-    await router.isReady()
+    const router = createTestRouter()
+    await router.push('/')
 
     const wrapper = mount(App, {
       global: {
@@ -103,5 +154,36 @@ describe('app shell', () => {
 
     expect(wrapper.get('[aria-label="通知列表"]').text()).toContain('有人提到了你')
     expect(wrapper.get('[aria-label="通知列表"]').text()).toContain('任务评论提到了你')
+  })
+
+  it('does not refresh unread count when a pending notification load completes after logout', async () => {
+    localStorage.setItem('sd-kanban-token', 'jwt-token')
+    localStorage.setItem(
+      'sd-kanban-user',
+      JSON.stringify({ id: 1, account: 'alex', nickname: 'Alex' }),
+    )
+    vi.mocked(fetchUnreadNotificationCount).mockResolvedValue({ count: 2 })
+    const pendingNotifications = deferred<Awaited<ReturnType<typeof fetchNotifications>>>()
+    vi.mocked(fetchNotifications).mockReturnValue(pendingNotifications.promise)
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    authenticateTestUser()
+    const router = createTestRouter()
+    await router.push('/')
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [pinia, router],
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="通知"]').trigger('click')
+    await wrapper.findAll('button')[1].trigger('click')
+    await flushPromises()
+    pendingNotifications.resolve([])
+    await flushPromises()
+
+    expect(fetchUnreadNotificationCount).toHaveBeenCalledTimes(1)
   })
 })
