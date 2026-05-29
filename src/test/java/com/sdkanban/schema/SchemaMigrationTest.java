@@ -34,7 +34,9 @@ class SchemaMigrationTest {
                 "task_tags",
                 "task_tag_links",
                 "task_comments",
-                "task_activities"
+                "task_activities",
+                "task_checklist_items",
+                "notifications"
             );
     }
 
@@ -75,6 +77,32 @@ class SchemaMigrationTest {
             "new_value",
             "created_at"
         );
+        assertColumns(
+            "task_checklist_items",
+            "task_id",
+            "project_id",
+            "title",
+            "is_done",
+            "sort_order",
+            "created_by",
+            "completed_by",
+            "completed_at",
+            "created_at",
+            "updated_at"
+        );
+        assertColumns(
+            "notifications",
+            "recipient_id",
+            "actor_id",
+            "project_id",
+            "task_id",
+            "type",
+            "title",
+            "content",
+            "is_read",
+            "created_at",
+            "read_at"
+        );
     }
 
     @Test
@@ -98,14 +126,23 @@ class SchemaMigrationTest {
             Map.entry("fk_task_tag_links_task_project", "task_tag_links.task_id,project_id->tasks.id,project_id"),
             Map.entry("fk_task_tag_links_tag_project", "task_tag_links.tag_id,project_id->task_tags.id,project_id"),
             Map.entry("fk_task_activities_task_project", "task_activities.task_id,project_id->tasks.id,project_id"),
-            Map.entry("fk_task_activities_actor_id", "task_activities.actor_id->users.id")
+            Map.entry("fk_task_activities_actor_id", "task_activities.actor_id->users.id"),
+            Map.entry("fk_task_checklist_items_task_project", "task_checklist_items.task_id,project_id->tasks.id,project_id"),
+            Map.entry("fk_task_checklist_items_created_by", "task_checklist_items.created_by->users.id"),
+            Map.entry("fk_task_checklist_items_completed_by", "task_checklist_items.completed_by->users.id"),
+            Map.entry("fk_notifications_recipient_id", "notifications.recipient_id->users.id"),
+            Map.entry("fk_notifications_actor_id", "notifications.actor_id->users.id"),
+            Map.entry("fk_notifications_project_id", "notifications.project_id->projects.id"),
+            Map.entry("fk_notifications_task_project", "notifications.task_id,project_id->tasks.id,project_id")
         ));
 
         assertIndexes(Map.of(
             "sprints", List.of("uk_sprints_id_project"),
             "board_columns", List.of("uk_board_columns_id_project", "uk_board_columns_project_sort"),
             "tasks", List.of("uk_tasks_id_project"),
-            "task_tags", List.of("uk_task_tags_id_project", "uk_task_tags_project_name")
+            "task_tags", List.of("uk_task_tags_id_project", "uk_task_tags_project_name"),
+            "task_checklist_items", List.of("idx_task_checklist_items_task_project"),
+            "notifications", List.of("idx_notifications_recipient_read_created")
         ));
     }
 
