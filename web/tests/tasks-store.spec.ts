@@ -210,6 +210,30 @@ describe('tasks store', () => {
     expect(tasks.loading).toBe(false)
   })
 
+  it('clears active task details and ignores pending open task responses', async () => {
+    const fetchA = deferred<typeof taskA>()
+    vi.mocked(fetchTask).mockReturnValue(fetchA.promise)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskB
+    tasks.comments = [{ id: 9, taskId: taskB.id, author: taskB.creator, content: 'stale', createdAt: '2026-05-28T10:00:00', updatedAt: '2026-05-28T10:00:00' }]
+    tasks.activities = [{ id: 10, taskId: taskB.id, actor: taskB.creator, actionType: 'TASK_CREATED', fieldName: null, oldValue: null, newValue: null, displayText: 'stale', createdAt: '2026-05-28T10:00:00' }]
+    tasks.checklistItems = [checklistItemB]
+    tasks.drawerOpen = true
+
+    const openTask = tasks.openTask(taskA.id)
+    tasks.clearActiveTask()
+    fetchA.resolve(taskA)
+    await openTask
+
+    expect(tasks.drawerOpen).toBe(false)
+    expect(tasks.activeTask).toBeNull()
+    expect(tasks.comments).toEqual([])
+    expect(tasks.activities).toEqual([])
+    expect(tasks.checklistItems).toEqual([])
+    expect(tasks.loading).toBe(false)
+    expect(tasks.error).toBeNull()
+  })
+
   it('does not show a stale open task failure after a newer task opens', async () => {
     const fetchA = deferred<typeof taskA>()
     const fetchB = deferred<typeof taskB>()

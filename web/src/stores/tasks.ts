@@ -85,6 +85,18 @@ export const useTasksStore = defineStore('tasks', {
     closeDrawer() {
       this.drawerOpen = false
     },
+    clearActiveTask() {
+      this.openTaskRequestId += 1
+      this.activeTask = null
+      this.comments = []
+      this.activities = []
+      this.checklistItems = []
+      this.drawerOpen = false
+      this.loading = false
+      this.error = null
+      this.actionLoading = false
+      this.actionError = null
+    },
     isCurrentActionTask(taskId: number) {
       return this.drawerOpen && this.activeTask?.id === taskId
     },

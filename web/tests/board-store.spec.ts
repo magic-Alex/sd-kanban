@@ -53,6 +53,29 @@ const projectBoard = {
   ],
 }
 
+const otherProjectBoard = {
+  ...projectBoard,
+  projectId: 9,
+  columns: [
+    {
+      ...projectBoard.columns[0],
+      id: 91,
+      name: 'Project 9 Ready',
+      tasks: [],
+    },
+  ],
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('board store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -73,6 +96,47 @@ describe('board store', () => {
     expect(fetchProjectBoard).toHaveBeenCalledWith(7, {})
     expect(board.projectBoard?.columns[0].name).toBe('Ready')
     expect(board.projectBoard?.columns[0].tasks[0].title).toBe('Build board')
+  })
+
+  it('keeps the newest project board when an older load resolves later', async () => {
+    const firstLoad = deferred<typeof projectBoard>()
+    const secondLoad = deferred<typeof otherProjectBoard>()
+    vi.mocked(fetchProjectBoard)
+      .mockReturnValueOnce(firstLoad.promise)
+      .mockReturnValueOnce(secondLoad.promise)
+    const board = useBoardStore()
+
+    const loadFirstProject = board.loadProjectBoard(7)
+    const loadSecondProject = board.loadProjectBoard(9)
+
+    secondLoad.resolve(otherProjectBoard)
+    await loadSecondProject
+    expect(board.projectBoard?.projectId).toBe(9)
+    expect(board.lastProjectId).toBe(9)
+
+    firstLoad.resolve(projectBoard)
+    await loadFirstProject
+
+    expect(board.projectBoard?.projectId).toBe(9)
+    expect(board.projectBoard?.columns[0].name).toBe('Project 9 Ready')
+    expect(board.lastProjectId).toBe(9)
+    expect(board.loading).toBe(false)
+  })
+
+  it('clears the project board and ignores pending board responses', async () => {
+    const pendingLoad = deferred<typeof projectBoard>()
+    vi.mocked(fetchProjectBoard).mockReturnValue(pendingLoad.promise)
+    const board = useBoardStore()
+
+    const loadProject = board.loadProjectBoard(7)
+    board.clearProjectBoard()
+    pendingLoad.resolve(projectBoard)
+    await loadProject
+
+    expect(board.projectBoard).toBeNull()
+    expect(board.lastProjectId).toBeNull()
+    expect(board.lastFilters).toEqual({})
+    expect(board.loading).toBe(false)
   })
 
   it('loads my-task board cards', async () => {

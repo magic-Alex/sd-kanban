@@ -36,6 +36,7 @@ const archivedFilters = ref<ArchivedTaskQuery>({})
 const archivedLoading = ref(false)
 const archivedError = ref<string | null>(null)
 const archivedRequestId = ref(0)
+const routeTaskRequestId = ref(0)
 const restoringTaskIds = ref<number[]>([])
 const activeDrawerArchived = ref(false)
 
@@ -59,6 +60,8 @@ watch(
 
 function resetProjectContext() {
   filters.value = {}
+  members.value = []
+  board.clearProjectBoard()
   boardMode.value = 'board'
   archivedTasks.value = []
   archivedFilters.value = {}
@@ -70,7 +73,8 @@ function resetProjectContext() {
   createModalOpen.value = false
   createDefaultColumnId.value = null
   createError.value = null
-  tasks.closeDrawer()
+  routeTaskRequestId.value += 1
+  tasks.clearActiveTask()
 }
 
 function applyFilters(value: BoardQuery) {
@@ -213,10 +217,16 @@ async function openRouteTask(value: unknown) {
   if (taskId === null) {
     return
   }
+  const requestId = routeTaskRequestId.value + 1
+  routeTaskRequestId.value = requestId
+  const activeProjectId = projectId.value
   try {
     await tasks.openTask(taskId)
-    if (tasks.activeTask?.id !== taskId || String(tasks.activeTask.projectId) !== projectId.value) {
-      tasks.closeDrawer()
+    if (routeTaskRequestId.value !== requestId || projectId.value !== activeProjectId) {
+      return
+    }
+    if (tasks.activeTask?.id !== taskId || String(tasks.activeTask.projectId) !== activeProjectId) {
+      tasks.clearActiveTask()
       activeDrawerArchived.value = false
       return
     }

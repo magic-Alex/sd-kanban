@@ -22,21 +22,40 @@ export const useBoardStore = defineStore('board', {
     error: null as string | null,
     lastFilters: {} as BoardQuery,
     lastProjectId: null as number | string | null,
+    projectBoardRequestId: 0,
   }),
   actions: {
     async loadProjectBoard(projectId: number | string, filters: BoardQuery = {}) {
+      const requestId = this.projectBoardRequestId + 1
+      this.projectBoardRequestId = requestId
       this.loading = true
       this.error = null
       try {
-        this.projectBoard = await fetchProjectBoard(projectId, filters)
-        this.lastProjectId = projectId
-        this.lastFilters = { ...filters }
+        const projectBoard = await fetchProjectBoard(projectId, filters)
+        if (this.projectBoardRequestId === requestId) {
+          this.projectBoard = projectBoard
+          this.lastProjectId = projectId
+          this.lastFilters = { ...filters }
+        }
       } catch (error) {
-        this.error = '看板加载失败'
+        if (this.projectBoardRequestId === requestId) {
+          this.error = '看板加载失败'
+        }
         throw error
       } finally {
-        this.loading = false
+        if (this.projectBoardRequestId === requestId) {
+          this.loading = false
+        }
       }
+    },
+    clearProjectBoard() {
+      this.projectBoardRequestId += 1
+      this.projectBoard = null
+      this.loading = false
+      this.movingTaskId = null
+      this.error = null
+      this.lastFilters = {}
+      this.lastProjectId = null
     },
     async loadMyTaskBoard(groupBy = 'project') {
       this.loading = true

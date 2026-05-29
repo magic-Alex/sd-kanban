@@ -296,6 +296,68 @@ describe('ProjectBoardView', () => {
     expect(document.body.querySelector('.task-drawer')).toBeNull()
   })
 
+  it('keeps the newer route task drawer when an older route task request resolves later', async () => {
+    const olderTaskRequest = deferred<typeof createdTask>()
+    const newerTaskRequest = deferred<typeof createdTask>()
+    vi.mocked(fetchTask)
+      .mockReturnValueOnce(olderTaskRequest.promise)
+      .mockReturnValueOnce(newerTaskRequest.promise)
+    mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    mockedRoute.value.query = { taskId: '77' }
+    await flushPromises()
+    mockedRoute.value.query = { taskId: '88' }
+    await flushPromises()
+
+    newerTaskRequest.resolve({ ...createdTask, id: 88, title: 'New route task', archived: false })
+    await flushPromises()
+    expect(document.body.querySelector('.task-drawer')?.textContent).toContain('New route task')
+
+    olderTaskRequest.resolve({ ...createdTask, id: 77, title: 'Old route task', archived: false })
+    await flushPromises()
+
+    expect(fetchTask).toHaveBeenNthCalledWith(1, 77)
+    expect(fetchTask).toHaveBeenNthCalledWith(2, 88)
+    expect(document.body.querySelector('.task-drawer')?.textContent).toContain('New route task')
+    expect(document.body.querySelector('.task-drawer')?.textContent).not.toContain('Old route task')
+  })
+
+  it('clears stale project members while a reused route loads the next project members', async () => {
+    const firstMembers = deferred<typeof members>()
+    const secondMembers = deferred<typeof members>()
+    vi.mocked(fetchProjectMembers)
+      .mockReturnValueOnce(firstMembers.promise)
+      .mockReturnValueOnce(secondMembers.promise)
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    firstMembers.resolve(members)
+    await flushPromises()
+
+    mockedRoute.value.params.projectId = '9'
+    await flushPromises()
+    await wrapper.get('.header-actions .primary-button').trigger('click')
+    await flushPromises()
+
+    const modal = document.body.querySelector('.task-modal')
+    const assigneeSelect = modal?.querySelectorAll('select')[3] as HTMLSelectElement | undefined
+    expect(Array.from(assigneeSelect?.options ?? []).map((option) => option.value)).not.toContain('11')
+
+    secondMembers.resolve([
+      {
+        user: { id: 22, account: 'dev', nickname: 'Developer', email: null, avatarUrl: null },
+        role: 'member',
+        joinedAt: '2026-05-28T11:00:00',
+      },
+    ])
+    await flushPromises()
+
+    expect(Array.from(assigneeSelect?.options ?? []).map((option) => option.value)).toContain('22')
+  })
+
   it('loads archived tasks and restores an archived task from the archived view', async () => {
     const wrapper = mount(ProjectBoardView, {
       attachTo: document.body,
