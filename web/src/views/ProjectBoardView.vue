@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import BoardFilters from '../components/board/BoardFilters.vue'
@@ -23,7 +23,7 @@ const route = useRoute()
 const board = useBoardStore()
 const tasks = useTasksStore()
 const filters = ref<BoardQuery>({})
-const projectId = String(route.params.projectId)
+const projectId = computed(() => String(route.params.projectId))
 const members = ref<ProjectMember[]>([])
 const createModalOpen = ref(false)
 const createDefaultColumnId = ref<number | null>(null)
@@ -39,22 +39,43 @@ const archivedRequestId = ref(0)
 const restoringTaskIds = ref<number[]>([])
 const activeDrawerArchived = ref(false)
 
-onMounted(() => {
-  board.loadProjectBoard(projectId, filters.value)
-  loadMembers()
-})
+watch(
+  projectId,
+  () => {
+    resetProjectContext()
+    void board.loadProjectBoard(projectId.value, filters.value).catch(() => undefined)
+    void loadMembers()
+  },
+  { immediate: true },
+)
 
 watch(
-  () => route.query.taskId,
-  (taskId) => {
+  () => [projectId.value, route.query.taskId],
+  ([, taskId]) => {
     void openRouteTask(taskId)
   },
   { immediate: true },
 )
 
+function resetProjectContext() {
+  filters.value = {}
+  boardMode.value = 'board'
+  archivedTasks.value = []
+  archivedFilters.value = {}
+  archivedLoading.value = false
+  archivedError.value = null
+  archivedRequestId.value += 1
+  restoringTaskIds.value = []
+  activeDrawerArchived.value = false
+  createModalOpen.value = false
+  createDefaultColumnId.value = null
+  createError.value = null
+  tasks.closeDrawer()
+}
+
 function applyFilters(value: BoardQuery) {
   filters.value = value
-  board.loadProjectBoard(projectId, value)
+  board.loadProjectBoard(projectId.value, value)
 }
 
 function showBoard() {
@@ -73,7 +94,7 @@ async function loadArchivedTasks(value: ArchivedTaskQuery = archivedFilters.valu
   archivedLoading.value = true
   archivedError.value = null
   try {
-    const taskList = await fetchArchivedTasks(projectId, value)
+    const taskList = await fetchArchivedTasks(projectId.value, value)
     if (archivedRequestId.value === requestId) {
       archivedTasks.value = taskList
     }
@@ -93,10 +114,16 @@ function moveTask(taskId: number, columnId: number, sortOrder: number) {
 }
 
 async function loadMembers() {
+  const activeProjectId = projectId.value
   try {
-    members.value = await fetchProjectMembers(projectId)
+    const projectMembers = await fetchProjectMembers(activeProjectId)
+    if (projectId.value === activeProjectId) {
+      members.value = projectMembers
+    }
   } catch (error) {
-    members.value = []
+    if (projectId.value === activeProjectId) {
+      members.value = []
+    }
   }
 }
 
@@ -110,7 +137,7 @@ async function submitTask(request: CreateTaskRequest) {
   submittingTask.value = true
   createError.value = null
   try {
-    const task = await board.createTask(projectId, request, filters.value)
+    const task = await board.createTask(projectId.value, request, filters.value)
     createModalOpen.value = false
     await tasks.openTask(task.id)
   } catch (error) {
@@ -188,7 +215,9 @@ async function openRouteTask(value: unknown) {
   }
   try {
     await tasks.openTask(taskId)
-    if (tasks.activeTask?.id !== taskId) {
+    if (tasks.activeTask?.id !== taskId || String(tasks.activeTask.projectId) !== projectId.value) {
+      tasks.closeDrawer()
+      activeDrawerArchived.value = false
       return
     }
     activeDrawerArchived.value = Boolean(tasks.activeTask.archived)
@@ -213,7 +242,7 @@ async function restoreArchivedTask(taskId: number) {
     await restoreTask(taskId)
     archivedTasks.value = archivedTasks.value.filter((task) => task.id !== taskId)
     try {
-      await board.loadProjectBoard(projectId, filters.value)
+      await board.loadProjectBoard(projectId.value, filters.value)
     } catch (error) {
       archivedError.value = '任务已恢复，但看板刷新失败'
     }
@@ -234,7 +263,7 @@ async function restoreActiveTask() {
   if (taskId) {
     archivedTasks.value = archivedTasks.value.filter((task) => task.id !== taskId)
     try {
-      await board.loadProjectBoard(projectId, filters.value)
+      await board.loadProjectBoard(projectId.value, filters.value)
     } catch (error) {
       archivedError.value = '任务已恢复，但看板刷新失败'
     }

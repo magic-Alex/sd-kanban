@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ProjectBoardView from '../src/views/ProjectBoardView.vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
@@ -16,11 +16,23 @@ import {
 import { useBoardStore } from '../src/stores/board'
 import { useTasksStore } from '../src/stores/tasks'
 
-let routeQuery: Record<string, string> = {}
-
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { projectId: '7' }, query: routeQuery }),
+const mockedRoute = vi.hoisted(() => ({
+  value: undefined as unknown as {
+    params: { projectId: string }
+    query: Record<string, string>
+  },
 }))
+
+vi.mock('vue-router', async () => {
+  const { reactive } = await vi.importActual<typeof import('vue')>('vue')
+  mockedRoute.value = reactive({
+    params: { projectId: '7' },
+    query: {},
+  })
+  return {
+    useRoute: () => mockedRoute.value,
+  }
+})
 
 vi.mock('../src/api/board', () => ({
   fetchProjectBoard: vi.fn(),
@@ -136,10 +148,13 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+enableAutoUnmount(afterEach)
+
 describe('ProjectBoardView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
-    routeQuery = {}
+    mockedRoute.value.params.projectId = '7'
+    mockedRoute.value.query = {}
     setActivePinia(createPinia())
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchProjectMembers).mockReset()
@@ -230,7 +245,7 @@ describe('ProjectBoardView', () => {
   })
 
   it('opens the task drawer from a taskId route query', async () => {
-    routeQuery = { taskId: '77' }
+    mockedRoute.value.query = { taskId: '77' }
     vi.mocked(fetchTask).mockResolvedValue({ ...archivedTask, archived: true })
 
     mount(ProjectBoardView, {
@@ -241,6 +256,44 @@ describe('ProjectBoardView', () => {
     expect(fetchTask).toHaveBeenCalledWith(77)
     expect(document.body.querySelector('.task-drawer')?.textContent).toContain('Archived task')
     expect(document.body.querySelector('.task-drawer')?.textContent).toContain('恢复')
+  })
+
+  it('reloads board context when notification navigation reuses the project board route', async () => {
+    vi.mocked(fetchTask).mockResolvedValue({ ...archivedTask, projectId: 9, archived: true })
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+    vi.mocked(fetchProjectBoard).mockClear()
+    vi.mocked(fetchProjectMembers).mockClear()
+    vi.mocked(fetchArchivedTasks).mockClear()
+
+    mockedRoute.value.params.projectId = '9'
+    mockedRoute.value.query = { taskId: '77' }
+    await flushPromises()
+
+    expect(fetchProjectBoard).toHaveBeenCalledWith('9', {})
+    expect(fetchProjectMembers).toHaveBeenCalledWith('9')
+    expect(fetchTask).toHaveBeenCalledWith(77)
+
+    await wrapper.findAll('.segmented-control button')[1].trigger('click')
+    await flushPromises()
+
+    expect(fetchArchivedTasks).toHaveBeenLastCalledWith('9', {})
+  })
+
+  it('does not show a stale notification task from another project', async () => {
+    mockedRoute.value.params.projectId = '9'
+    mockedRoute.value.query = { taskId: '77' }
+    vi.mocked(fetchTask).mockResolvedValue({ ...archivedTask, projectId: 7, archived: true })
+
+    mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(fetchTask).toHaveBeenCalledWith(77)
+    expect(document.body.querySelector('.task-drawer')).toBeNull()
   })
 
   it('loads archived tasks and restores an archived task from the archived view', async () => {
