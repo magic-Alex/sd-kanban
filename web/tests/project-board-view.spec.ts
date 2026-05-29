@@ -216,6 +216,38 @@ describe('ProjectBoardView', () => {
     expect(document.body.textContent).not.toContain('创建看板任务')
   })
 
+  it('does not refresh an old project or open its created task after reused route navigation', async () => {
+    const createRequest = deferred<typeof createdTask>()
+    vi.mocked(createTask).mockReturnValue(createRequest.promise)
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+    vi.mocked(fetchProjectBoard).mockClear()
+    vi.mocked(fetchTask).mockClear()
+
+    await wrapper.get('.header-actions .primary-button').trigger('click')
+    await flushPromises()
+    const form = wrapper.get('form.task-create-form')
+    await form.get('input').setValue('Delayed create task')
+    await form.trigger('submit')
+    await flushPromises()
+
+    expect(createTask).toHaveBeenCalledWith('7', expect.objectContaining({ title: 'Delayed create task' }))
+
+    mockedRoute.value.params.projectId = '9'
+    await flushPromises()
+    expect(fetchProjectBoard).toHaveBeenCalledWith('9', {})
+    vi.mocked(fetchProjectBoard).mockClear()
+
+    createRequest.resolve({ ...createdTask, id: 99, projectId: 7, title: 'Delayed create task' })
+    await flushPromises()
+
+    expect(fetchProjectBoard).not.toHaveBeenCalled()
+    expect(fetchTask).not.toHaveBeenCalledWith(99)
+    expect(document.body.querySelector('.task-drawer')).toBeNull()
+  })
+
   it('passes members to filters and applies the assignee filter', async () => {
     const wrapper = mount(ProjectBoardView, {
       attachTo: document.body,
@@ -343,7 +375,7 @@ describe('ProjectBoardView', () => {
     await flushPromises()
 
     const modal = document.body.querySelector('.task-modal')
-    const assigneeSelect = modal?.querySelectorAll('select')[3] as HTMLSelectElement | undefined
+    const assigneeSelect = modal?.querySelector('select[aria-label="任务负责人"]') as HTMLSelectElement | undefined
     expect(Array.from(assigneeSelect?.options ?? []).map((option) => option.value)).not.toContain('11')
 
     secondMembers.resolve([

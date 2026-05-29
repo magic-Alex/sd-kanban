@@ -138,14 +138,27 @@ function openCreateTask(columnId?: number) {
 }
 
 async function submitTask(request: CreateTaskRequest) {
+  const activeProjectId = projectId.value
+  const activeFilters = { ...filters.value }
   submittingTask.value = true
   createError.value = null
   try {
-    const task = await board.createTask(projectId.value, request, filters.value)
+    const task = await board.createTask(activeProjectId, request, activeFilters, {
+      shouldRefresh: () => projectId.value === activeProjectId,
+    })
+    if (projectId.value !== activeProjectId || String(task.projectId) !== activeProjectId) {
+      return
+    }
     createModalOpen.value = false
     await tasks.openTask(task.id)
+    if (projectId.value !== activeProjectId || tasks.activeTask?.id !== task.id || String(tasks.activeTask.projectId) !== activeProjectId) {
+      return
+    }
+    activeDrawerArchived.value = false
   } catch (error) {
-    createError.value = '任务创建失败，请检查字段后重试'
+    if (projectId.value === activeProjectId) {
+      createError.value = '任务创建失败，请检查字段后重试'
+    }
   } finally {
     submittingTask.value = false
   }

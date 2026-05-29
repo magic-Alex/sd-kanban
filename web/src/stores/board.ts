@@ -13,6 +13,10 @@ function cloneBoard(board: ProjectBoard | null): ProjectBoard | null {
   return board ? JSON.parse(JSON.stringify(board)) : null
 }
 
+type CreateTaskOptions = {
+  shouldRefresh?: () => boolean
+}
+
 export const useBoardStore = defineStore('board', {
   state: () => ({
     projectBoard: null as ProjectBoard | null,
@@ -71,6 +75,8 @@ export const useBoardStore = defineStore('board', {
     },
     async moveTask(taskId: number, columnId: number, sortOrder: number) {
       const previous = cloneBoard(this.projectBoard)
+      const boardRequestId = this.projectBoardRequestId
+      const boardProjectId = this.projectBoard?.projectId
       const task = this.removeTask(taskId)
       if (!task) {
         return
@@ -80,10 +86,14 @@ export const useBoardStore = defineStore('board', {
       try {
         await updateTaskPosition(taskId, { columnId, sortOrder })
       } catch (error) {
-        this.projectBoard = previous
+        if (this.projectBoardRequestId === boardRequestId && this.projectBoard?.projectId === boardProjectId) {
+          this.projectBoard = previous
+        }
         throw error
       } finally {
-        this.movingTaskId = null
+        if (this.movingTaskId === taskId) {
+          this.movingTaskId = null
+        }
       }
     },
     async refreshProjectBoard() {
@@ -102,9 +112,16 @@ export const useBoardStore = defineStore('board', {
     removeTaskFromBoard(taskId: number) {
       this.removeTask(taskId)
     },
-    async createTask(projectId: number | string, request: CreateTaskRequest, filters: BoardQuery = {}) {
+    async createTask(
+      projectId: number | string,
+      request: CreateTaskRequest,
+      filters: BoardQuery = {},
+      options: CreateTaskOptions = {},
+    ) {
       const task = await createTask(projectId, request)
-      await this.loadProjectBoard(projectId, filters)
+      if (options.shouldRefresh?.() ?? true) {
+        await this.loadProjectBoard(projectId, filters)
+      }
       return task
     },
     removeTask(taskId: number): TaskCard | null {

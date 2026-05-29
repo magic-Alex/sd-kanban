@@ -203,6 +203,22 @@ describe('board store', () => {
     expect(board.projectBoard?.columns[1].tasks).toHaveLength(0)
   })
 
+  it('does not restore an old project board when a stale move fails after project reset', async () => {
+    const moveRequest = deferred<unknown>()
+    vi.mocked(updateTaskPosition).mockReturnValue(moveRequest.promise)
+    const board = useBoardStore()
+    board.projectBoard = structuredClone(projectBoard)
+
+    const moveTask = board.moveTask(12, 2, 0)
+    board.clearProjectBoard()
+    board.projectBoard = structuredClone(otherProjectBoard)
+    moveRequest.reject(new Error('move failed'))
+    await expect(moveTask).rejects.toThrow('move failed')
+
+    expect(board.projectBoard?.projectId).toBe(9)
+    expect(board.projectBoard?.columns[0].name).toBe('Project 9 Ready')
+  })
+
   it('creates a task and reloads the current project board', async () => {
     vi.mocked(createTask).mockResolvedValue({
       id: 31,
@@ -242,5 +258,39 @@ describe('board store', () => {
     })
     expect(fetchProjectBoard).toHaveBeenCalledWith(7, { keyword: 'onboarding' })
     expect(task.title).toBe('Write onboarding checklist')
+  })
+
+  it('skips the create refresh when the caller marks the project context stale', async () => {
+    vi.mocked(createTask).mockResolvedValue({
+      id: 32,
+      projectId: 7,
+      sprintId: null,
+      columnId: 1,
+      assignee: null,
+      creator: { id: 1, account: 'alex', nickname: 'Alex', email: null, avatarUrl: null },
+      title: 'Delayed task',
+      description: null,
+      taskType: 'TASK',
+      priority: 'MEDIUM',
+      storyPoints: null,
+      estimatedHours: null,
+      dueDate: null,
+      acceptanceCriteria: null,
+      sortOrder: 1,
+      tags: [],
+      createdAt: '2026-05-28T10:00:00',
+      updatedAt: '2026-05-28T10:00:00',
+    })
+    const board = useBoardStore()
+
+    const task = await board.createTask(7, {
+      title: 'Delayed task',
+      taskType: 'TASK',
+      priority: 'MEDIUM',
+      columnId: 1,
+    }, {}, { shouldRefresh: () => false })
+
+    expect(task.title).toBe('Delayed task')
+    expect(fetchProjectBoard).not.toHaveBeenCalled()
   })
 })
