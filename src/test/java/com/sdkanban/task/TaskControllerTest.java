@@ -330,6 +330,37 @@ class TaskControllerTest {
     }
 
     @Test
+    void restoringActiveTaskDoesNotMoveOrRecordActivity() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long firstTaskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Already active", fixture.member().id());
+        createTask(fixture.member().token(), fixture.projectId(), columnId, "Second active", fixture.member().id());
+
+        Integer originalSortOrder = jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM tasks WHERE id = ?",
+            Integer.class,
+            firstTaskId
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/restore", firstTaskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(firstTaskId));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT is_archived FROM tasks WHERE id = ?", Boolean.class, firstTaskId)).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM tasks WHERE id = ?",
+            Integer.class,
+            firstTaskId
+        )).isEqualTo(originalSortOrder);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM task_activities WHERE task_id = ? AND action_type = 'TASK_RESTORED'",
+            Integer.class,
+            firstTaskId
+        )).isZero();
+    }
+
+    @Test
     void ordinaryProjectMemberCannotRestoreUnrelatedTask() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Owner task", fixture.owner().id());

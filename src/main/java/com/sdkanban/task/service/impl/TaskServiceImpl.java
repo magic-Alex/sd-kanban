@@ -241,15 +241,15 @@ public class TaskServiceImpl implements TaskService {
             .filter(candidate -> !candidate.isDeleted())
             .orElseThrow(() -> BusinessException.notFound("TASK_NOT_FOUND", "Task not found"));
         requireDestructiveTaskActor(task, currentUserId);
-        if (boardColumnRepository.findByIdAndProjectId(task.getColumnId(), task.getProjectId()).isEmpty()) {
-            Long fallbackColumnId = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(task.getProjectId()).stream()
-                .findFirst()
-                .map(BoardColumn::getId)
-                .orElseThrow(() -> BusinessException.notFound("BOARD_COLUMN_NOT_FOUND", "Board column not found"));
-            task.changeColumnId(fallbackColumnId);
-        }
-        task.changeSortOrder(taskRepository.maxSortOrderInColumn(task.getProjectId(), task.getColumnId()) + 1);
         if (task.isArchived()) {
+            if (boardColumnRepository.findByIdAndProjectId(task.getColumnId(), task.getProjectId()).isEmpty()) {
+                Long fallbackColumnId = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(task.getProjectId()).stream()
+                    .findFirst()
+                    .map(BoardColumn::getId)
+                    .orElseThrow(() -> BusinessException.notFound("BOARD_COLUMN_NOT_FOUND", "Board column not found"));
+                task.changeColumnId(fallbackColumnId);
+            }
+            task.changeSortOrder(taskRepository.maxSortOrderInColumn(task.getProjectId(), task.getColumnId()) + 1);
             task.restore();
             recordActivity(task, currentUserId, "TASK_RESTORED", null, null, null);
         }

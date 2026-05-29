@@ -6,11 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
-    Optional<Task> findByIdAndProjectId(Long id, Long projectId);
-
     @Query("""
         select coalesce(max(task.sortOrder), -1)
         from Task task
