@@ -255,10 +255,17 @@ test('runs the core kanban workflow', async ({ page, request }) => {
         !response.url().includes('/archive') &&
         response.request().method() === 'PATCH',
     )
+    const editBoardRefreshPromise = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/api/projects/${projectId}/board`) && response.request().method() === 'GET',
+    )
     await taskDrawer.getByRole('button', { name: '保存任务', exact: true }).click()
     const editResponse = await editResponsePromise
     expect(editResponse.ok(), await editResponse.text()).toBeTruthy()
+    const editBoardRefresh = await editBoardRefreshPromise
+    expect(editBoardRefresh.ok(), await editBoardRefresh.text()).toBeTruthy()
     await expect(page.locator('.task-drawer')).toContainText(updatedTaskTitle)
+    await expect(page.locator('.board-column', { hasText: 'In Progress' }).getByText(updatedTaskTitle)).toBeVisible()
 
     const editedTaskResponse = await request.get(`${backendUrl}/api/tasks/${taskId}`, {
       headers: authHeaders(token),
