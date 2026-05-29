@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../src/App.vue'
-import { fetchNotifications, fetchUnreadNotificationCount } from '../src/api/notifications'
+import { fetchNotifications, fetchUnreadNotificationCount, markNotificationRead } from '../src/api/notifications'
 import { useAuthStore } from '../src/stores/auth'
 import { useNotificationsStore } from '../src/stores/notifications'
 
@@ -76,6 +76,19 @@ describe('app shell', () => {
     vi.mocked(fetchNotifications).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockResolvedValue({ count: 0 })
+    vi.mocked(markNotificationRead).mockReset()
+    vi.mocked(markNotificationRead).mockResolvedValue({
+      id: 1,
+      actor: null,
+      projectId: 7,
+      taskId: 12,
+      type: 'MENTION',
+      title: '有人提到了你',
+      content: '任务评论提到了你，请查看最新讨论。',
+      read: true,
+      createdAt: '2026-05-29T10:00:00',
+      readAt: '2026-05-29T10:05:00',
+    })
   })
 
   afterEach(async () => {
@@ -154,6 +167,49 @@ describe('app shell', () => {
 
     expect(wrapper.get('[aria-label="通知列表"]').text()).toContain('有人提到了你')
     expect(wrapper.get('[aria-label="通知列表"]').text()).toContain('任务评论提到了你')
+  })
+
+  it('opens the related task route from a task notification', async () => {
+    localStorage.setItem('sd-kanban-token', 'jwt-token')
+    localStorage.setItem(
+      'sd-kanban-user',
+      JSON.stringify({ id: 1, account: 'alex', nickname: 'Alex' }),
+    )
+    vi.mocked(fetchNotifications).mockResolvedValue([
+      {
+        id: 1,
+        actor: null,
+        projectId: 7,
+        taskId: 12,
+        type: 'MENTION',
+        title: '有人提到了你',
+        content: '任务评论提到了你，请查看最新讨论。',
+        read: false,
+        createdAt: '2026-05-29T10:00:00',
+        readAt: null,
+      },
+    ])
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    authenticateTestUser()
+    const router = createTestRouter()
+    await router.push('/')
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [pinia, router],
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="通知"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[aria-label="通知列表"]').get('button.notification-content-button').trigger('click')
+    await flushPromises()
+
+    expect(markNotificationRead).toHaveBeenCalledWith(1)
+    expect(router.currentRoute.value.fullPath).toBe('/projects/7/board?taskId=12')
+    expect(wrapper.find('[aria-label="通知列表"]').exists()).toBe(false)
   })
 
   it('does not refresh unread count when a pending notification load completes after logout', async () => {

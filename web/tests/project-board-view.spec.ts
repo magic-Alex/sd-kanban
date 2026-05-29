@@ -16,8 +16,10 @@ import {
 import { useBoardStore } from '../src/stores/board'
 import { useTasksStore } from '../src/stores/tasks'
 
+let routeQuery: Record<string, string> = {}
+
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { projectId: '7' } }),
+  useRoute: () => ({ params: { projectId: '7' }, query: routeQuery }),
 }))
 
 vi.mock('../src/api/board', () => ({
@@ -137,6 +139,7 @@ function deferred<T>() {
 describe('ProjectBoardView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
+    routeQuery = {}
     setActivePinia(createPinia())
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchProjectMembers).mockReset()
@@ -224,6 +227,20 @@ describe('ProjectBoardView', () => {
 
     expect(fetchProjectBoard).toHaveBeenLastCalledWith('7', { assigneeId: '0' })
     expect((assigneeFilter.element as HTMLSelectElement).value).toBe('0')
+  })
+
+  it('opens the task drawer from a taskId route query', async () => {
+    routeQuery = { taskId: '77' }
+    vi.mocked(fetchTask).mockResolvedValue({ ...archivedTask, archived: true })
+
+    mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(fetchTask).toHaveBeenCalledWith(77)
+    expect(document.body.querySelector('.task-drawer')?.textContent).toContain('Archived task')
+    expect(document.body.querySelector('.task-drawer')?.textContent).toContain('恢复')
   })
 
   it('loads archived tasks and restores an archived task from the archived view', async () => {

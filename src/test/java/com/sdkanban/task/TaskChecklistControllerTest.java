@@ -117,6 +117,31 @@ class TaskChecklistControllerTest {
     }
 
     @Test
+    void checklistToggleActivitiesDisplayItemTitle() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Checklist task");
+        long itemId = createChecklistItem(fixture.member().token(), taskId, "Review release steps");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/{itemId}/toggle", taskId, itemId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].displayText").value("Member 完成了检查项：Review release steps"));
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/{itemId}/toggle", taskId, itemId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].displayText").value("Member 重新打开了检查项：Review release steps"));
+    }
+
+    @Test
     void nonMemberCannotAccessChecklistItems() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         RegisteredUser outsider = register("outsider", "Outsider");

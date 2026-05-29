@@ -112,10 +112,10 @@ public class TaskChecklistServiceImpl implements TaskChecklistService {
 
         if (item.isDone()) {
             item.markOpen();
-            recordActivity(task, currentUserId, "CHECKLIST_ITEM_REOPENED", "done", "true", "false");
+            recordActivity(task, currentUserId, "CHECKLIST_ITEM_REOPENED", "checklist", null, item.getTitle());
         } else {
             item.markDone(currentUserId);
-            recordActivity(task, currentUserId, "CHECKLIST_ITEM_COMPLETED", "done", "false", "true");
+            recordActivity(task, currentUserId, "CHECKLIST_ITEM_COMPLETED", "checklist", null, item.getTitle());
         }
         return toResponse(item);
     }

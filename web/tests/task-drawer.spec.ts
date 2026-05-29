@@ -81,6 +81,7 @@ function drawerProps(overrides = {}) {
     addChecklistItem: vi.fn(),
     toggleChecklistItem: vi.fn(),
     renameChecklistItem: vi.fn(),
+    moveChecklistItem: vi.fn(),
     deleteChecklistItem: vi.fn(),
     actionLoading: false,
     actionError: null,
@@ -186,6 +187,39 @@ describe('TaskDrawer', () => {
     await flushPromises()
 
     expect(toggleChecklistItem).toHaveBeenCalledWith(2)
+  })
+
+  it('renames and reorders checklist items from the drawer', async () => {
+    const renameChecklistItem = vi.fn()
+    const moveChecklistItem = vi.fn()
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        checklistItems: [
+          checklistItemFixture({ id: 1, title: 'Write tests', done: true, sortOrder: 0 }),
+          checklistItemFixture({ id: 2, title: 'Build UI', done: false, sortOrder: 1 }),
+        ],
+        renameChecklistItem,
+        moveChecklistItem,
+      }),
+    })
+
+    ;(getByLabel('编辑检查项 Build UI') as HTMLButtonElement).click()
+    await nextTick()
+    const titleInput = getByLabel('编辑检查项标题 Build UI') as HTMLInputElement
+    titleInput.value = 'Build polished UI'
+    titleInput.dispatchEvent(new Event('input'))
+    ;(getByLabel('保存检查项 Build UI') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(renameChecklistItem).toHaveBeenCalledWith(2, 'Build polished UI')
+
+    ;(getByLabel('上移检查项 Build UI') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(moveChecklistItem).toHaveBeenCalledWith(2, 'up')
+    expect((getByLabel('上移检查项 Write tests') as HTMLButtonElement).disabled).toBe(true)
+    expect((getByLabel('下移检查项 Build UI') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('disables a checklist checkbox while its toggle request is pending', async () => {

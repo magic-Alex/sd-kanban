@@ -25,6 +25,7 @@ export interface TaskResponse {
   acceptanceCriteria: string | null
   sortOrder: number
   tags: TaskTag[]
+  archived?: boolean
   createdAt: string
   updatedAt: string
 }

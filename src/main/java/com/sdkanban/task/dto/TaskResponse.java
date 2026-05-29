@@ -25,6 +25,7 @@ public record TaskResponse(
     String acceptanceCriteria,
     Integer sortOrder,
     List<TaskTagResponse> tags,
+    Boolean archived,
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 ) {
@@ -51,6 +52,7 @@ public record TaskResponse(
             task.getAcceptanceCriteria(),
             task.getSortOrder(),
             tags,
+            task.isArchived(),
             task.getCreatedAt(),
             task.getUpdatedAt()
         );

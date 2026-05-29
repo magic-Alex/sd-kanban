@@ -143,6 +143,7 @@ async function deleteTask() {
       :add-checklist-item="tasks.addChecklistItem"
       :toggle-checklist-item="tasks.toggleChecklistItem"
       :rename-checklist-item="tasks.renameChecklistItem"
+      :move-checklist-item="tasks.moveChecklistItem"
       :delete-checklist-item="tasks.removeChecklistItem"
       :save-task="saveTask"
       :complete-task="completeTask"

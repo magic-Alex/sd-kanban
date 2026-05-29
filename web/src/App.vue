@@ -95,10 +95,16 @@ async function openNotificationTask(taskId: number) {
   }
   notificationPanelOpen.value = false
   if (item?.projectId) {
-    await router.push(`/projects/${item.projectId}/board`)
+    await router.push({
+      path: `/projects/${item.projectId}/board`,
+      query: { taskId: String(taskId) },
+    })
     return
   }
-  await router.push('/my-tasks')
+  await router.push({
+    path: '/my-tasks',
+    query: { taskId: String(taskId) },
+  })
 }
 
 async function logout() {

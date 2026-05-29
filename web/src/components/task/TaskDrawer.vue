@@ -21,6 +21,7 @@ const props = defineProps<{
   addChecklistItem: (title: string) => Promise<void> | void
   toggleChecklistItem: (itemId: number) => Promise<void> | void
   renameChecklistItem: (itemId: number, title: string) => Promise<void> | void
+  moveChecklistItem: (itemId: number, direction: 'up' | 'down') => Promise<void> | void
   deleteChecklistItem: (itemId: number) => Promise<void> | void
   saveTask: (request: UpdateTaskRequest) => Promise<void> | void
   completeTask: () => Promise<void> | void
@@ -395,6 +396,7 @@ async function submitComment() {
             :add-item="addChecklistItem"
             :toggle-item="toggleChecklistItem"
             :rename-item="renameChecklistItem"
+            :move-item="moveChecklistItem"
             :delete-item="deleteChecklistItem"
           />
 

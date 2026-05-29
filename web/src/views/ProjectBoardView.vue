@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import BoardFilters from '../components/board/BoardFilters.vue'
@@ -43,6 +43,14 @@ onMounted(() => {
   board.loadProjectBoard(projectId, filters.value)
   loadMembers()
 })
+
+watch(
+  () => route.query.taskId,
+  (taskId) => {
+    void openRouteTask(taskId)
+  },
+  { immediate: true },
+)
 
 function applyFilters(value: BoardQuery) {
   filters.value = value
@@ -164,6 +172,34 @@ async function openArchivedTask(taskId: number) {
     }
   } catch (error) {
     // Keep the previous drawer task and source if the replacement task cannot load.
+  }
+}
+
+function routeTaskId(value: unknown) {
+  const rawValue = Array.isArray(value) ? value[0] : value
+  const numericTaskId = Number(rawValue)
+  return Number.isFinite(numericTaskId) && numericTaskId > 0 ? numericTaskId : null
+}
+
+async function openRouteTask(value: unknown) {
+  const taskId = routeTaskId(value)
+  if (taskId === null) {
+    return
+  }
+  try {
+    await tasks.openTask(taskId)
+    if (tasks.activeTask?.id !== taskId) {
+      return
+    }
+    activeDrawerArchived.value = Boolean(tasks.activeTask.archived)
+    if (activeDrawerArchived.value) {
+      boardMode.value = 'archived'
+      await loadArchivedTasks(archivedFilters.value)
+    } else {
+      boardMode.value = 'board'
+    }
+  } catch (error) {
+    // Keep the page usable if a stale notification points at an inaccessible task.
   }
 }
 
@@ -295,6 +331,7 @@ async function deleteActiveTask() {
       :add-checklist-item="tasks.addChecklistItem"
       :toggle-checklist-item="tasks.toggleChecklistItem"
       :rename-checklist-item="tasks.renameChecklistItem"
+      :move-checklist-item="tasks.moveChecklistItem"
       :delete-checklist-item="tasks.removeChecklistItem"
       :save-task="saveActiveTask"
       :complete-task="completeActiveTask"
