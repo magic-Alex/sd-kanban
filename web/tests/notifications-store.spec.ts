@@ -68,4 +68,29 @@ describe('notifications store', () => {
     expect(notifications.loading).toBe(false)
     expect(notifications.error).toBeNull()
   })
+
+  it('records load errors without throwing to the UI caller', async () => {
+    vi.mocked(fetchNotifications).mockRejectedValue(new Error('network failed'))
+    const notifications = useNotificationsStore()
+
+    await expect(notifications.load()).resolves.toBeUndefined()
+
+    expect(notifications.error).toBe('通知加载失败')
+    expect(notifications.loading).toBe(false)
+  })
+
+  it('records mark-read errors without throwing to the UI caller', async () => {
+    vi.mocked(markNotificationRead).mockRejectedValue(new Error('network failed'))
+    const notifications = useNotificationsStore()
+    notifications.items = [
+      { id: 1, actor: null, projectId: 7, taskId: 12, type: 'MENTION', title: '有人提到了你', content: '任务评论提到了你', read: false, createdAt: '2026-05-29T10:00:00', readAt: null },
+    ]
+    notifications.unreadCount = 1
+
+    await expect(notifications.markRead(1)).resolves.toBeUndefined()
+
+    expect(notifications.items[0].read).toBe(false)
+    expect(notifications.unreadCount).toBe(1)
+    expect(notifications.error).toBe('通知更新失败')
+  })
 })

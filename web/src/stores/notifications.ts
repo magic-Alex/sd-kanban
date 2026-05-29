@@ -14,6 +14,8 @@ export const useNotificationsStore = defineStore('notifications', {
     loading: false,
     error: null as string | null,
     loadRequestId: 0,
+    markReadPendingIds: [] as number[],
+    markAllReadPending: false,
   }),
   actions: {
     async load(status: 'all' | 'unread' = 'all') {
@@ -30,7 +32,6 @@ export const useNotificationsStore = defineStore('notifications', {
         if (this.loadRequestId === requestId) {
           this.error = '通知加载失败'
         }
-        throw error
       } finally {
         if (this.loadRequestId === requestId) {
           this.loading = false
@@ -38,22 +39,48 @@ export const useNotificationsStore = defineStore('notifications', {
       }
     },
     async loadUnreadCount() {
-      const result = await fetchUnreadNotificationCount()
-      this.unreadCount = result.count
+      try {
+        const result = await fetchUnreadNotificationCount()
+        this.unreadCount = result.count
+      } catch (error) {
+        this.error = '通知加载失败'
+      }
     },
     async markRead(notificationId: number) {
-      const updated = await markNotificationRead(notificationId)
-      this.items = this.items.map((item) => item.id === notificationId ? updated : item)
-      await this.loadUnreadCount()
+      if (this.markReadPendingIds.includes(notificationId)) {
+        return
+      }
+      this.error = null
+      this.markReadPendingIds.push(notificationId)
+      try {
+        const updated = await markNotificationRead(notificationId)
+        this.items = this.items.map((item) => item.id === notificationId ? updated : item)
+        await this.loadUnreadCount()
+      } catch (error) {
+        this.error = '通知更新失败'
+      } finally {
+        this.markReadPendingIds = this.markReadPendingIds.filter((id) => id !== notificationId)
+      }
     },
     async markAllRead() {
-      await markAllNotificationsRead()
-      this.items = this.items.map((item) => ({
-        ...item,
-        read: true,
-        readAt: item.readAt ?? new Date().toISOString(),
-      }))
-      this.unreadCount = 0
+      if (this.markAllReadPending) {
+        return
+      }
+      this.error = null
+      this.markAllReadPending = true
+      try {
+        await markAllNotificationsRead()
+        this.items = this.items.map((item) => ({
+          ...item,
+          read: true,
+          readAt: item.readAt ?? new Date().toISOString(),
+        }))
+        this.unreadCount = 0
+      } catch (error) {
+        this.error = '通知更新失败'
+      } finally {
+        this.markAllReadPending = false
+      }
     },
   },
 })

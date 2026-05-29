@@ -13,21 +13,74 @@
       </nav>
       <div class="account-block">
         <span>{{ auth.user?.nickname ?? auth.user?.account }}</span>
+        <button type="button" class="notification-button" aria-label="通知" @click="openNotifications">
+          通知
+          <span v-if="notifications.unreadCount > 0">{{ notifications.unreadCount }}</span>
+        </button>
         <button type="button" @click="logout">退出</button>
       </div>
     </aside>
     <RouterView />
+    <NotificationPanel
+      :open="notificationPanelOpen"
+      :items="notifications.items"
+      :loading="notifications.loading"
+      :error="notifications.error"
+      @close="notificationPanelOpen = false"
+      @mark-read="markNotificationRead"
+      @mark-all-read="markAllNotificationsRead"
+      @open-task="openNotificationTask"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import NotificationPanel from './components/notification/NotificationPanel.vue'
 import { useAuthStore } from './stores/auth'
+import { useNotificationsStore } from './stores/notifications'
 
 const router = useRouter()
 const auth = useAuthStore()
+const notifications = useNotificationsStore()
+const notificationPanelOpen = ref(false)
+
+onMounted(() => {
+  if (!router.currentRoute.value.meta.public && auth.isAuthenticated) {
+    void notifications.loadUnreadCount()
+  }
+})
+
+async function openNotifications() {
+  notificationPanelOpen.value = true
+  await notifications.load('all')
+  await notifications.loadUnreadCount()
+}
+
+async function markNotificationRead(notificationId: number) {
+  await notifications.markRead(notificationId)
+}
+
+async function markAllNotificationsRead() {
+  await notifications.markAllRead()
+}
+
+async function openNotificationTask(taskId: number) {
+  const item = notifications.items.find((notification) => notification.taskId === taskId)
+  if (item && !item.read) {
+    await notifications.markRead(item.id)
+  }
+  notificationPanelOpen.value = false
+  if (item?.projectId) {
+    await router.push(`/projects/${item.projectId}/board`)
+    return
+  }
+  await router.push('/my-tasks')
+}
 
 async function logout() {
+  notificationPanelOpen.value = false
   auth.logout()
   await router.replace('/login')
 }
