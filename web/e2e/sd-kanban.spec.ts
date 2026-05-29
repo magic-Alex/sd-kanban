@@ -175,9 +175,10 @@ test('runs the core kanban workflow', async ({ page, request }) => {
       expect(createResponse.ok(), await createResponse.text()).toBeTruthy()
     }
     const taskId = (await createResponse.json()).data.id as number
-    await expect(page.locator('.task-drawer')).toContainText(taskTitle)
+    const taskDrawer = page.locator('.task-drawer')
+    await expect(taskDrawer).toContainText(taskTitle)
     await expect(page.getByText('Task can move and accept comments')).toBeVisible()
-    await page.getByRole('button', { name: '关闭' }).click()
+    await taskDrawer.getByRole('button', { name: '关闭', exact: true }).click()
     await expect(page.getByText(taskTitle)).toBeVisible()
 
     const moveResponsePromise = page.waitForResponse(
@@ -203,12 +204,12 @@ test('runs the core kanban workflow', async ({ page, request }) => {
     await page.getByText(taskTitle).click()
     await expect(page.getByText('Task can move and accept comments')).toBeVisible()
 
-    await page.getByLabel('新增检查项').fill(checklistItemTitle)
+    await taskDrawer.getByLabel('新增检查项').fill(checklistItemTitle)
     const checklistAddResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes(`/api/tasks/${taskId}/checklist`) && response.request().method() === 'POST',
     )
-    await page.getByRole('button', { name: '添加', exact: true }).click()
+    await taskDrawer.locator('.checklist-form').getByRole('button', { name: '添加', exact: true }).click()
     const checklistAddResponse = await checklistAddResponsePromise
     if (!checklistAddResponse.ok()) {
       expect(checklistAddResponse.ok(), await checklistAddResponse.text()).toBeTruthy()
@@ -221,20 +222,20 @@ test('runs the core kanban workflow', async ({ page, request }) => {
         response.url().includes(`/api/tasks/${taskId}/checklist/${checklistItemId}/toggle`) &&
         response.request().method() === 'PATCH',
     )
-    await page.getByLabel(`切换检查项 ${checklistItemTitle}`).check()
+    await taskDrawer.getByLabel(`切换检查项 ${checklistItemTitle}`).check()
     const checklistToggleResponse = await checklistToggleResponsePromise
     expect(checklistToggleResponse.ok(), await checklistToggleResponse.text()).toBeTruthy()
     await expect(page.getByText('检查清单 1/1')).toBeVisible()
 
-    await page.getByLabel('新增评论').fill(commentText)
+    await taskDrawer.getByLabel('新增评论').fill(commentText)
     const commentResponsePromise = page.waitForResponse(
       (response) => response.url().includes(`/api/tasks/${taskId}/comments`) && response.request().method() === 'POST',
     )
-    await page.getByRole('button', { name: '添加评论' }).click()
+    await taskDrawer.getByRole('button', { name: '添加评论', exact: true }).click()
     const commentResponse = await commentResponsePromise
     expect(commentResponse.ok(), await commentResponse.text()).toBeTruthy()
     await expect(page.getByText(commentText)).toBeVisible()
-    await page.getByRole('button', { name: '关闭' }).click()
+    await taskDrawer.getByRole('button', { name: '关闭', exact: true }).click()
 
     await page.locator('.primary-nav').getByRole('link', { name: '仪表盘' }).click()
     await expect(page.locator('.metric-card', { hasText: '待处理任务' }).getByText('1')).toBeVisible()
@@ -242,11 +243,11 @@ test('runs the core kanban workflow', async ({ page, request }) => {
     await page.goto(`${frontendUrl}/projects/${projectId}/board`)
     await expect(page.locator('.board-column', { hasText: 'In Progress' }).getByText(taskTitle)).toBeVisible()
     await page.locator('.task-card', { hasText: taskTitle }).click()
-    await page.getByRole('button', { name: '编辑任务' }).click()
-    await page.getByLabel('编辑任务标题').fill(updatedTaskTitle)
-    await page.getByLabel('编辑任务描述').fill('')
-    await page.getByLabel('编辑故事点').fill('2')
-    await page.getByLabel('编辑预计工时').fill('6')
+    await taskDrawer.getByRole('button', { name: '编辑任务', exact: true }).click()
+    await taskDrawer.getByLabel('编辑任务标题').fill(updatedTaskTitle)
+    await taskDrawer.getByLabel('编辑任务描述').fill('')
+    await taskDrawer.getByLabel('编辑故事点').fill('2')
+    await taskDrawer.getByLabel('编辑预计工时').fill('6')
     const editResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes(`/api/tasks/${taskId}`) &&
@@ -254,7 +255,7 @@ test('runs the core kanban workflow', async ({ page, request }) => {
         !response.url().includes('/archive') &&
         response.request().method() === 'PATCH',
     )
-    await page.getByRole('button', { name: '保存任务' }).click()
+    await taskDrawer.getByRole('button', { name: '保存任务', exact: true }).click()
     const editResponse = await editResponsePromise
     expect(editResponse.ok(), await editResponse.text()).toBeTruthy()
     await expect(page.locator('.task-drawer')).toContainText(updatedTaskTitle)
@@ -272,10 +273,10 @@ test('runs the core kanban workflow', async ({ page, request }) => {
     const completeResponsePromise = page.waitForResponse(
       (response) => response.url().includes(`/api/tasks/${taskId}/position`) && response.request().method() === 'PATCH',
     )
-    await page.getByRole('button', { name: '标记完成' }).click()
+    await taskDrawer.getByRole('button', { name: '标记完成', exact: true }).click()
     const completeResponse = await completeResponsePromise
     expect(completeResponse.ok()).toBeTruthy()
-    await page.getByRole('button', { name: '关闭' }).click()
+    await taskDrawer.getByRole('button', { name: '关闭', exact: true }).click()
     await expect(page.locator('.board-column', { hasText: 'Done' }).getByText(updatedTaskTitle)).toBeVisible()
 
     const completedTaskResponse = await request.get(`${backendUrl}/api/tasks/${taskId}`, {
@@ -288,7 +289,7 @@ test('runs the core kanban workflow', async ({ page, request }) => {
     const archiveResponsePromise = page.waitForResponse(
       (response) => response.url().includes(`/api/tasks/${taskId}/archive`) && response.request().method() === 'PATCH',
     )
-    await page.getByRole('button', { name: '归档任务' }).click()
+    await taskDrawer.getByRole('button', { name: '归档任务', exact: true }).click()
     const archiveResponse = await archiveResponsePromise
     expect(archiveResponse.ok()).toBeTruthy()
     await expect(page.locator('.task-card', { hasText: updatedTaskTitle })).toHaveCount(0)
@@ -310,7 +311,7 @@ test('runs the core kanban workflow', async ({ page, request }) => {
       (response) =>
         response.url().includes(`/api/projects/${projectId}/board`) && response.request().method() === 'GET',
     )
-    await page.getByLabel(`恢复任务 ${updatedTaskTitle}`).click()
+    await page.locator('.archived-tasks').getByRole('button', { name: `恢复任务 ${updatedTaskTitle}`, exact: true }).click()
     const restoreResponse = await restoreResponsePromise
     expect(restoreResponse.ok(), await restoreResponse.text()).toBeTruthy()
     const restoredBoardResponse = await restoredBoardResponsePromise
