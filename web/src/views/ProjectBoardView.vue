@@ -35,6 +35,9 @@ const archivedTasks = ref<TaskResponse[]>([])
 const archivedFilters = ref<ArchivedTaskQuery>({})
 const archivedLoading = ref(false)
 const archivedError = ref<string | null>(null)
+const archivedRequestId = ref(0)
+const restoringTaskIds = ref<number[]>([])
+const activeDrawerArchived = ref(false)
 
 onMounted(() => {
   board.loadProjectBoard(projectId, filters.value)
@@ -56,15 +59,24 @@ async function showArchivedTasks() {
 }
 
 async function loadArchivedTasks(value: ArchivedTaskQuery = archivedFilters.value) {
+  const requestId = archivedRequestId.value + 1
+  archivedRequestId.value = requestId
   archivedFilters.value = value
   archivedLoading.value = true
   archivedError.value = null
   try {
-    archivedTasks.value = await fetchArchivedTasks(projectId, value)
+    const taskList = await fetchArchivedTasks(projectId, value)
+    if (archivedRequestId.value === requestId) {
+      archivedTasks.value = taskList
+    }
   } catch (error) {
-    archivedError.value = '已归档任务加载失败'
+    if (archivedRequestId.value === requestId) {
+      archivedError.value = '已归档任务加载失败'
+    }
   } finally {
-    archivedLoading.value = false
+    if (archivedRequestId.value === requestId) {
+      archivedLoading.value = false
+    }
   }
 }
 
@@ -133,17 +145,38 @@ async function archiveActiveTask() {
   }
 }
 
+async function openBoardTask(taskId: number) {
+  activeDrawerArchived.value = false
+  await tasks.openTask(taskId)
+}
+
+async function openArchivedTask(taskId: number) {
+  activeDrawerArchived.value = true
+  await tasks.openTask(taskId)
+}
+
 async function restoreArchivedTask(taskId: number) {
+  if (restoringTaskIds.value.includes(taskId)) {
+    return
+  }
+  restoringTaskIds.value = [...restoringTaskIds.value, taskId]
   archivedError.value = null
   try {
     await restoreTask(taskId)
     archivedTasks.value = archivedTasks.value.filter((task) => task.id !== taskId)
-    await board.loadProjectBoard(projectId, filters.value)
+    try {
+      await board.loadProjectBoard(projectId, filters.value)
+    } catch (error) {
+      archivedError.value = '任务已恢复，但看板刷新失败'
+    }
     if (tasks.activeTask?.id === taskId) {
       tasks.closeDrawer()
+      activeDrawerArchived.value = false
     }
   } catch (error) {
     archivedError.value = '任务恢复失败，请重试'
+  } finally {
+    restoringTaskIds.value = restoringTaskIds.value.filter((id) => id !== taskId)
   }
 }
 
@@ -152,7 +185,12 @@ async function restoreActiveTask() {
   await tasks.restoreActiveTask()
   if (taskId) {
     archivedTasks.value = archivedTasks.value.filter((task) => task.id !== taskId)
-    await board.loadProjectBoard(projectId, filters.value)
+    try {
+      await board.loadProjectBoard(projectId, filters.value)
+    } catch (error) {
+      archivedError.value = '任务已恢复，但看板刷新失败'
+    }
+    activeDrawerArchived.value = false
   }
 }
 
@@ -200,7 +238,7 @@ async function deleteActiveTask() {
           v-for="column in board.projectBoard?.columns ?? []"
           :key="column.id"
           :column="column"
-          @open-task="tasks.openTask"
+          @open-task="openBoardTask"
           @move-task="moveTask"
           @create-task="openCreateTask"
         />
@@ -213,7 +251,8 @@ async function deleteActiveTask() {
       :members="members"
       :loading="archivedLoading"
       :error="archivedError"
-      @open-task="tasks.openTask"
+      :restoring-task-ids="restoringTaskIds"
+      @open-task="openArchivedTask"
       @restore-task="restoreArchivedTask"
       @apply-filters="loadArchivedTasks"
       />
@@ -237,7 +276,7 @@ async function deleteActiveTask() {
       :checklist-items="tasks.checklistItems"
       :members="members"
       :columns="board.projectBoard?.columns ?? []"
-      :archived="boardMode === 'archived'"
+      :archived="activeDrawerArchived"
       :action-loading="tasks.actionLoading || completingTask"
       :action-error="tasks.actionError"
       :add-comment="tasks.addComment"

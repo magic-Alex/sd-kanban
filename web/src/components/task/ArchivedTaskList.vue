@@ -8,6 +8,7 @@ defineProps<{
   members: ProjectMember[]
   loading?: boolean
   error?: string | null
+  restoringTaskIds?: number[]
 }>()
 
 const emit = defineEmits<{
@@ -79,11 +80,11 @@ function applyFilters() {
         <button
           class="secondary-button"
           type="button"
-          :disabled="loading"
+          :disabled="loading || restoringTaskIds?.includes(task.id)"
           :aria-label="`恢复任务 ${task.title}`"
           @click="emit('restoreTask', task.id)"
         >
-          恢复
+          {{ restoringTaskIds?.includes(task.id) ? '恢复中...' : '恢复' }}
         </button>
       </li>
     </ul>

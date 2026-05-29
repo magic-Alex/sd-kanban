@@ -34,9 +34,20 @@ vi.mock('../src/api/tasks', () => ({
   createTask: vi.fn(),
   fetchArchivedTasks: vi.fn(),
   fetchTask: vi.fn(),
+  fetchTaskActivities: vi.fn().mockResolvedValue([]),
+  fetchTaskComments: vi.fn().mockResolvedValue([]),
   restoreTask: vi.fn(),
   updateTask: vi.fn(),
   updateTaskPosition: vi.fn(),
+}))
+
+vi.mock('../src/api/checklist', () => ({
+  createChecklistItem: vi.fn(),
+  deleteChecklistItem: vi.fn(),
+  fetchChecklistItems: vi.fn().mockResolvedValue([]),
+  reorderChecklistItems: vi.fn(),
+  toggleChecklistItem: vi.fn(),
+  updateChecklistItem: vi.fn(),
 }))
 
 const projectBoard = {
@@ -97,6 +108,30 @@ const archivedTask = {
   assignee: null,
   priority: 'LOW',
   taskType: 'TASK',
+}
+
+const currentBoardTask = {
+  id: 88,
+  title: 'Current board task',
+  priority: 'MEDIUM',
+  taskType: 'STORY',
+  assignee: null,
+  sortOrder: 0,
+  storyPoints: null,
+  dueDate: null,
+  checklistTotalCount: 0,
+  checklistDoneCount: 0,
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (reason?: unknown) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
 }
 
 describe('ProjectBoardView', () => {
@@ -209,6 +244,110 @@ describe('ProjectBoardView', () => {
     expect(restoreTask).toHaveBeenCalledWith(77)
     expect(fetchProjectBoard).toHaveBeenCalledTimes(2)
     expect(document.body.textContent).not.toContain('Archived task')
+  })
+
+  it('keeps the latest archived task response when an earlier request resolves later', async () => {
+    const firstRequest = deferred<typeof archivedTask[]>()
+    const secondTask = { ...archivedTask, id: 78, title: 'Latest archived task' }
+    const secondRequest = deferred<typeof archivedTask[]>()
+    vi.mocked(fetchArchivedTasks)
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise)
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('form[aria-label="已归档任务筛选"] input').setValue('latest')
+    await wrapper.get('form[aria-label="已归档任务筛选"]').trigger('submit')
+    secondRequest.resolve([secondTask])
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Latest archived task')
+
+    firstRequest.resolve([archivedTask])
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Latest archived task')
+    expect(document.body.textContent).not.toContain('Archived task')
+  })
+
+  it('keeps drawer archive actions tied to the task open source instead of the current board mode', async () => {
+    vi.mocked(fetchProjectBoard).mockResolvedValue({
+      ...projectBoard,
+      columns: [
+        {
+          ...projectBoard.columns[0],
+          tasks: [currentBoardTask],
+        },
+        projectBoard.columns[1],
+      ],
+    })
+    vi.mocked(fetchTask).mockImplementation(async (taskId) => (
+      Number(taskId) === 77
+        ? archivedTask
+        : { ...createdTask, id: 88, title: 'Current board task' }
+    ))
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('article.task-card').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Current board task')
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('[aria-label="恢复任务"]')).toBeNull()
+
+    await wrapper.get('button.archived-task-title').trigger('click')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('Archived task')
+    expect(document.body.querySelector('[aria-label="恢复任务"]')).not.toBeNull()
+  })
+
+  it('removes a restored archived task when board refresh fails and reports refresh failure', async () => {
+    vi.mocked(fetchProjectBoard)
+      .mockResolvedValueOnce(projectBoard)
+      .mockRejectedValueOnce(new Error('refresh failed'))
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[aria-label="恢复任务 Archived task"]').trigger('click')
+    await flushPromises()
+
+    expect(restoreTask).toHaveBeenCalledWith(77)
+    expect(document.body.textContent).not.toContain('Archived task')
+    expect(document.body.textContent).toContain('任务已恢复，但看板刷新失败')
+    expect(document.body.textContent).not.toContain('任务恢复失败')
+  })
+
+  it('does not send duplicate restore requests while an archived task restore is pending', async () => {
+    const restoreRequest = deferred<typeof archivedTask>()
+    vi.mocked(restoreTask).mockReturnValue(restoreRequest.promise)
+    const wrapper = mount(ProjectBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.get('[aria-label="查看已归档任务"]').trigger('click')
+    await flushPromises()
+    const restoreButton = wrapper.get('[aria-label="恢复任务 Archived task"]')
+    await restoreButton.trigger('click')
+    await restoreButton.trigger('click')
+
+    expect(restoreTask).toHaveBeenCalledTimes(1)
+    expect((restoreButton.element as HTMLButtonElement).disabled).toBe(true)
+
+    restoreRequest.resolve(archivedTask)
   })
 
   it('does not reopen the originally active task after completing if the drawer active task changes', async () => {
