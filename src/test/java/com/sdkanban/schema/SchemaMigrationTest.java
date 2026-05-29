@@ -193,6 +193,50 @@ class SchemaMigrationTest {
 
     @Test
     @Transactional
+    void taskCollaborationReferencesRejectCrossProjectAndOrphanTaskLinks() {
+        seedCanonicalProject(1301, 2301, "collab-owner-1", "Collaboration Project 1");
+        seedCanonicalProject(1302, 2302, "collab-owner-2", "Collaboration Project 2");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3301, 2301, 'Todo', '#0f766e', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3302, 2302, 'Todo', '#9333ea', 1, false)");
+        jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5301, 2301, 3301, 1301, 'Collaboration task 1')");
+        jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5302, 2302, 3302, 1302, 'Collaboration task 2')");
+
+        assertThat(jdbcTemplate.update(
+            "INSERT INTO task_checklist_items (task_id, project_id, title, created_by) VALUES (5301, 2301, 'Valid checklist item', 1301)"
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.update(
+            """
+                INSERT INTO notifications (
+                    recipient_id, actor_id, project_id, task_id, type, title, content
+                ) VALUES (1301, 1302, 2301, 5301, 'MENTION', 'Valid notification', 'Valid notification content')
+                """
+        )).isEqualTo(1);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "INSERT INTO task_checklist_items (task_id, project_id, title, created_by) VALUES (5301, 2302, 'Wrong project checklist item', 1301)"
+        )).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            """
+                INSERT INTO notifications (
+                    recipient_id, actor_id, project_id, task_id, type, title, content
+                ) VALUES (1301, 1302, 2302, 5301, 'MENTION', 'Wrong project notification', 'Wrong project notification content')
+                """
+        )).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            """
+                INSERT INTO notifications (
+                    recipient_id, actor_id, project_id, task_id, type, title, content
+                ) VALUES (1301, 1302, NULL, 5301, 'MENTION', 'Orphan task notification', 'Orphan task notification content')
+                """
+        ))
+            .hasMessageContaining("chk_notifications_task_requires_project")
+            .hasMessageContaining("violated");
+    }
+
+    @Test
+    @Transactional
     void sprintScopeRejectsCrossProjectAssignmentAndRestrictsReferencedSprintDeletion() {
         seedCanonicalProject(1201, 2201, "sprint-owner-1", "Sprint Project 1");
         seedCanonicalProject(1202, 2202, "sprint-owner-2", "Sprint Project 2");
