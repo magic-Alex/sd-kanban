@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -106,6 +107,78 @@ class NotificationControllerTest {
                 .header("Authorization", "Bearer " + other.token()))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOTIFICATION_NOT_FOUND"));
+    }
+
+    @Test
+    void listReturnsMostRecentFiftyWithActorSummary() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        long taskId = createTask(owner.token(), projectId, firstColumnId(projectId), "Many notifications");
+        for (int i = 1; i <= 55; i++) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO notifications (recipient_id, actor_id, project_id, task_id, type, title, content)
+                VALUES (?, ?, ?, ?, 'MENTION', ?, ?)
+                """,
+                owner.id(),
+                owner.id(),
+                projectId,
+                taskId,
+                "Notification " + i,
+                "Content " + i
+            );
+        }
+
+        String response = mockMvc.perform(get("/api/notifications")
+                .header("Authorization", "Bearer " + owner.token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(50))
+            .andExpect(jsonPath("$.data[0].title").value("Notification 55"))
+            .andExpect(jsonPath("$.data[0].actor.id").value(owner.id()))
+            .andExpect(jsonPath("$.data[0].actor.nickname").value("Owner"))
+            .andExpect(jsonPath("$.data[49].title").value("Notification 6"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        assertThat(objectMapper.readTree(response).path("data")).hasSize(50);
+    }
+
+    @Test
+    void markAllReadOnlyMarksCurrentUsersUnreadNotifications() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser other = register("other", "Other");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        long taskId = createTask(owner.token(), projectId, firstColumnId(projectId), "Read all");
+        jdbcTemplate.update(
+            """
+            INSERT INTO notifications (recipient_id, actor_id, project_id, task_id, type, title, content)
+            VALUES (?, ?, ?, ?, 'MENTION', 'Owner notification', 'Owner content')
+            """,
+            owner.id(), owner.id(), projectId, taskId
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO notifications (recipient_id, actor_id, project_id, task_id, type, title, content)
+            VALUES (?, ?, ?, ?, 'MENTION', 'Other notification', 'Other content')
+            """,
+            other.id(), owner.id(), projectId, taskId
+        );
+
+        mockMvc.perform(patch("/api/notifications/read-all")
+                .header("Authorization", "Bearer " + owner.token()))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND is_read = false",
+            Integer.class,
+            owner.id()
+        )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND is_read = false",
+            Integer.class,
+            other.id()
+        )).isEqualTo(1);
     }
 
     private long createTask(String token, long projectId, long columnId, String title) throws Exception {

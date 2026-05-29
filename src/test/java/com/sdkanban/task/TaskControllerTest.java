@@ -574,6 +574,59 @@ class TaskControllerTest {
     }
 
     @Test
+    void emailLikeTextDoesNotCreateMentionNotification() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Email mention");
+
+        mockMvc.perform(post("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "Please contact email@Member before review"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE type = 'MENTION' AND task_id = ?",
+            Integer.class,
+            taskId
+        )).isZero();
+    }
+
+    @Test
+    void duplicateSelfAndNonMemberMentionsCreateOnlyValidNotifications() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        RegisteredUser outsider = register("outsider", "Outsider");
+        long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Mention filter");
+
+        mockMvc.perform(post("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "@Member please check this with @Member, @Owner, and @Outsider"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id = ? AND type = 'MENTION' AND task_id = ?",
+            Integer.class,
+            fixture.member().id(),
+            taskId
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_id IN (?, ?) AND type = 'MENTION' AND task_id = ?",
+            Integer.class,
+            fixture.owner().id(),
+            outsider.id(),
+            taskId
+        )).isZero();
+    }
+
+    @Test
     void assignmentCreatesNotificationForNewAssignee() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Assign task");

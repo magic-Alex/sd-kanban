@@ -11,12 +11,14 @@ import com.sdkanban.user.dto.UserSummary;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 @Conditional(ProjectPersistenceAvailableCondition.class)
 public class NotificationServiceImpl implements NotificationService {
+    private static final int LIST_LIMIT = 50;
+
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
@@ -36,10 +40,11 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationResponse> list(String status, Long currentUserId) {
         List<Notification> notifications = "unread".equalsIgnoreCase(status)
-            ? notificationRepository.findByRecipientIdAndReadFalseOrderByCreatedAtDescIdDesc(currentUserId)
-            : notificationRepository.findByRecipientIdOrderByCreatedAtDescIdDesc(currentUserId);
+            ? notificationRepository.findByRecipientIdAndReadFalseOrderByCreatedAtDescIdDesc(currentUserId, PageRequest.of(0, LIST_LIMIT))
+            : notificationRepository.findByRecipientIdOrderByCreatedAtDescIdDesc(currentUserId, PageRequest.of(0, LIST_LIMIT));
+        Map<Long, UserSummary> actorsById = actorSummaries(notifications);
         return notifications.stream()
-            .map(this::toResponse)
+            .map(notification -> toResponse(notification, actorsById))
             .toList();
     }
 
@@ -55,7 +60,7 @@ public class NotificationServiceImpl implements NotificationService {
         Notification notification = notificationRepository.findByIdAndRecipientId(notificationId, currentUserId)
             .orElseThrow(() -> BusinessException.notFound("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.markRead();
-        return toResponse(notification);
+        return toResponse(notification, actorSummaries(List.of(notification)));
     }
 
     @Override
@@ -92,16 +97,30 @@ public class NotificationServiceImpl implements NotificationService {
             .toList());
     }
 
-    private NotificationResponse toResponse(Notification notification) {
-        return NotificationResponse.from(notification, actorSummary(notification.getActorId()));
+    private NotificationResponse toResponse(Notification notification, Map<Long, UserSummary> actorsById) {
+        return NotificationResponse.from(notification, actorSummary(notification.getActorId(), actorsById));
     }
 
-    private UserSummary actorSummary(Long actorId) {
+    private Map<Long, UserSummary> actorSummaries(List<Notification> notifications) {
+        Set<Long> actorIds = notifications.stream()
+            .map(Notification::getActorId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (actorIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findAllById(actorIds).stream()
+            .collect(Collectors.toMap(User::getId, UserSummary::from));
+    }
+
+    private UserSummary actorSummary(Long actorId, Map<Long, UserSummary> actorsById) {
         if (actorId == null) {
             return null;
         }
-        User user = userRepository.findById(actorId)
-            .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "User not found"));
-        return UserSummary.from(user);
+        UserSummary actor = actorsById.get(actorId);
+        if (actor == null) {
+            throw BusinessException.notFound("USER_NOT_FOUND", "User not found");
+        }
+        return actor;
     }
 }

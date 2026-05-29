@@ -46,7 +46,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -64,6 +63,9 @@ public class TaskServiceImpl implements TaskService {
         "acceptanceCriteria",
         "assigneeId",
         "sprintId"
+    );
+    private static final Pattern MENTION_PATTERN = Pattern.compile(
+        "(^|[^\\p{L}\\p{N}_\\-])@([\\p{L}\\p{N}_\\-\\u4e00-\\u9fa5]+)"
     );
 
     private final TaskRepository taskRepository;
@@ -365,18 +367,21 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private Set<Long> mentionedMemberIds(Long projectId, String content) {
-        Set<String> nicknames = Pattern.compile("@([\\p{L}\\p{N}_\\-\\u4e00-\\u9fa5]+)")
+        Set<String> nicknames = MENTION_PATTERN
             .matcher(content)
             .results()
-            .map(match -> match.group(1))
+            .map(match -> match.group(2))
             .collect(Collectors.toCollection(LinkedHashSet::new));
         if (nicknames.isEmpty()) {
             return Set.of();
         }
-        return projectMemberRepository.findByIdProjectIdOrderByCreatedAtAsc(projectId).stream()
+        List<Long> memberIds = projectMemberRepository.findByIdProjectIdOrderByCreatedAtAsc(projectId).stream()
             .map(ProjectMember::getUserId)
-            .map(userRepository::findById)
-            .flatMap(Optional::stream)
+            .toList();
+        if (memberIds.isEmpty()) {
+            return Set.of();
+        }
+        return userRepository.findAllById(memberIds).stream()
             .filter(user -> nicknames.contains(user.getNickname()))
             .map(User::getId)
             .collect(Collectors.toCollection(LinkedHashSet::new));
