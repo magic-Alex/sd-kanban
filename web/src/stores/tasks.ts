@@ -186,55 +186,111 @@ export const useTasksStore = defineStore('tasks', {
       this.comments = [comment, ...this.comments]
     },
     async addChecklistItem(title: string) {
-      if (!this.activeTask) {
+      if (!this.activeTask || this.actionLoading) {
         return
       }
       const taskId = this.activeTask.id
-      const item = await createChecklistItem(taskId, title)
-      if (!this.isCurrentActionTask(taskId)) {
-        return
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        const item = await createChecklistItem(taskId, title)
+        if (!this.isCurrentActionTask(taskId)) {
+          return
+        }
+        this.checklistItems = sortChecklistItems([...this.checklistItems, item])
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        this.actionError = '检查项更新失败，请重试'
+        throw error
+      } finally {
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+        }
       }
-      this.checklistItems = sortChecklistItems([...this.checklistItems, item])
     },
     async renameChecklistItem(itemId: number, title: string) {
-      if (!this.activeTask) {
+      if (!this.activeTask || this.actionLoading) {
         return
       }
       const taskId = this.activeTask.id
-      const item = await updateChecklistItem(taskId, itemId, title)
-      if (!this.isCurrentActionTask(taskId)) {
-        return
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        const item = await updateChecklistItem(taskId, itemId, title)
+        if (!this.isCurrentActionTask(taskId)) {
+          return
+        }
+        this.checklistItems = sortChecklistItems(
+          this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
+        )
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        this.actionError = '检查项更新失败，请重试'
+        throw error
+      } finally {
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+        }
       }
-      this.checklistItems = sortChecklistItems(
-        this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
-      )
     },
     async toggleChecklistItem(itemId: number) {
-      if (!this.activeTask) {
+      if (!this.activeTask || this.actionLoading) {
         return
       }
       const taskId = this.activeTask.id
-      const item = await toggleChecklistItemApi(taskId, itemId)
-      if (!this.isCurrentActionTask(taskId)) {
-        return
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        const item = await toggleChecklistItemApi(taskId, itemId)
+        if (!this.isCurrentActionTask(taskId)) {
+          return
+        }
+        this.checklistItems = sortChecklistItems(
+          this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
+        )
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        this.actionError = '检查项更新失败，请重试'
+        throw error
+      } finally {
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+        }
       }
-      this.checklistItems = sortChecklistItems(
-        this.checklistItems.map((candidate) => candidate.id === itemId ? item : candidate),
-      )
     },
     async removeChecklistItem(itemId: number) {
-      if (!this.activeTask) {
+      if (!this.activeTask || this.actionLoading) {
         return
       }
       const taskId = this.activeTask.id
-      await deleteChecklistItem(taskId, itemId)
-      if (!this.isCurrentActionTask(taskId)) {
-        return
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        await deleteChecklistItem(taskId, itemId)
+        if (!this.isCurrentActionTask(taskId)) {
+          return
+        }
+        this.checklistItems = this.checklistItems.filter((item) => item.id !== itemId)
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        this.actionError = '检查项更新失败，请重试'
+        throw error
+      } finally {
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+        }
       }
-      this.checklistItems = this.checklistItems.filter((item) => item.id !== itemId)
     },
     async moveChecklistItem(itemId: number, direction: 'up' | 'down') {
-      if (!this.activeTask) {
+      if (!this.activeTask || this.actionLoading) {
         return
       }
       const taskId = this.activeTask.id
@@ -246,11 +302,25 @@ export const useTasksStore = defineStore('tasks', {
       }
       const [item] = items.splice(currentIndex, 1)
       items.splice(nextIndex, 0, item)
-      const reordered = await reorderChecklistItems(taskId, items.map((candidate) => candidate.id))
-      if (!this.isCurrentActionTask(taskId)) {
-        return
+      this.actionLoading = true
+      this.actionError = null
+      try {
+        const reordered = await reorderChecklistItems(taskId, items.map((candidate) => candidate.id))
+        if (!this.isCurrentActionTask(taskId)) {
+          return
+        }
+        this.checklistItems = sortChecklistItems(reordered)
+      } catch (error) {
+        if (!this.isCurrentActionTask(taskId)) {
+          throw error
+        }
+        this.actionError = '检查项更新失败，请重试'
+        throw error
+      } finally {
+        if (this.isCurrentActionTask(taskId)) {
+          this.actionLoading = false
+        }
       }
-      this.checklistItems = sortChecklistItems(reordered)
     },
   },
 })

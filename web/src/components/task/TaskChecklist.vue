@@ -13,10 +13,25 @@ const props = defineProps<{
 
 const newTitle = ref('')
 const submitting = ref(false)
+const pendingItemIds = ref(new Set<number>())
 const localError = ref<string | null>(null)
 
 const doneCount = computed(() => props.items.filter((item) => item.done).length)
 const totalCount = computed(() => props.items.length)
+
+function itemPending(itemId: number) {
+  return pendingItemIds.value.has(itemId)
+}
+
+function setItemPending(itemId: number, pending: boolean) {
+  const nextPendingIds = new Set(pendingItemIds.value)
+  if (pending) {
+    nextPendingIds.add(itemId)
+  } else {
+    nextPendingIds.delete(itemId)
+  }
+  pendingItemIds.value = nextPendingIds
+}
 
 async function submitItem() {
   const title = newTitle.value.trim()
@@ -36,17 +51,33 @@ async function submitItem() {
 }
 
 async function toggleItem(itemId: number) {
-  if (props.actionLoading) {
+  if (props.actionLoading || itemPending(itemId)) {
     return
   }
-  await props.toggleItem(itemId)
+  setItemPending(itemId, true)
+  localError.value = null
+  try {
+    await props.toggleItem(itemId)
+  } catch (error) {
+    localError.value = '检查项更新失败'
+  } finally {
+    setItemPending(itemId, false)
+  }
 }
 
 async function deleteItem(itemId: number) {
-  if (props.actionLoading) {
+  if (props.actionLoading || itemPending(itemId)) {
     return
   }
-  await props.deleteItem(itemId)
+  setItemPending(itemId, true)
+  localError.value = null
+  try {
+    await props.deleteItem(itemId)
+  } catch (error) {
+    localError.value = '检查项更新失败'
+  } finally {
+    setItemPending(itemId, false)
+  }
 }
 </script>
 
@@ -71,7 +102,7 @@ async function deleteItem(itemId: number) {
           <input
             type="checkbox"
             :checked="item.done"
-            :disabled="actionLoading"
+            :disabled="actionLoading || itemPending(item.id)"
             :aria-label="`切换检查项 ${item.title}`"
             @change="toggleItem(item.id)"
           />
@@ -80,7 +111,7 @@ async function deleteItem(itemId: number) {
         <button
           class="secondary-button danger-button"
           type="button"
-          :disabled="actionLoading"
+          :disabled="actionLoading || itemPending(item.id)"
           :aria-label="`删除检查项 ${item.title}`"
           @click="deleteItem(item.id)"
         >

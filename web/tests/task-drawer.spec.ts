@@ -105,6 +105,17 @@ function controllableRejectingPromise() {
   return { promise, rejectPromise }
 }
 
+function controllablePromise() {
+  let resolvePromise: () => void = () => undefined
+  let rejectPromise: (error: Error) => void = () => undefined
+  const promise = new Promise<void>((resolve, reject) => {
+    resolvePromise = resolve
+    rejectPromise = reject
+  })
+
+  return { promise, resolvePromise, rejectPromise }
+}
+
 function drawerActionButton(index: number) {
   return document.body.querySelectorAll('.drawer-actions button').item(index) as HTMLButtonElement
 }
@@ -175,6 +186,94 @@ describe('TaskDrawer', () => {
     await flushPromises()
 
     expect(toggleChecklistItem).toHaveBeenCalledWith(2)
+  })
+
+  it('disables a checklist checkbox while its toggle request is pending', async () => {
+    const { promise, resolvePromise } = controllablePromise()
+    const toggleChecklistItem = vi.fn(() => promise)
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        checklistItems: [
+          checklistItemFixture({ id: 2, title: 'Build UI', done: false, sortOrder: 1 }),
+        ],
+        toggleChecklistItem,
+      }),
+    })
+
+    const checkbox = getByLabel('切换检查项 Build UI') as HTMLInputElement
+    checkbox.click()
+    await nextTick()
+
+    expect(toggleChecklistItem).toHaveBeenCalledTimes(1)
+    expect(checkbox.disabled).toBe(true)
+
+    checkbox.click()
+    await flushPromises()
+    expect(toggleChecklistItem).toHaveBeenCalledTimes(1)
+
+    resolvePromise()
+    await flushPromises()
+    expect(checkbox.disabled).toBe(false)
+  })
+
+  it('shows a checklist error when delete fails without bubbling to Vue global errors', async () => {
+    const vueErrorHandler = vi.fn()
+    const deleteChecklistItem = vi.fn(async () => {
+      throw new Error('delete failed')
+    })
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      global: {
+        config: {
+          errorHandler: vueErrorHandler,
+        },
+      },
+      props: drawerProps({
+        checklistItems: [
+          checklistItemFixture({ id: 2, title: 'Build UI', done: false, sortOrder: 1 }),
+        ],
+        deleteChecklistItem,
+      }),
+    })
+
+    ;(getByLabel('删除检查项 Build UI') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(deleteChecklistItem).toHaveBeenCalledWith(2)
+    expect(document.body.textContent).toContain('检查项更新失败')
+    expect(vueErrorHandler).not.toHaveBeenCalled()
+  })
+
+  it('keeps checklist input on add failure and clears it after add succeeds', async () => {
+    const addChecklistItem = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('add failed'))
+      .mockResolvedValueOnce(undefined)
+    mount(TaskDrawer, {
+      attachTo: document.body,
+      props: drawerProps({
+        addChecklistItem,
+      }),
+    })
+
+    const input = getByLabel('新增检查项') as HTMLInputElement
+    const form = document.body.querySelector('.checklist-form') as HTMLFormElement
+
+    input.value = 'Wire actions'
+    input.dispatchEvent(new Event('input'))
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+
+    expect(addChecklistItem).toHaveBeenCalledWith('Wire actions')
+    expect(input.value).toBe('Wire actions')
+    expect(document.body.textContent).toContain('检查项保存失败，请重试')
+
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+
+    expect(addChecklistItem).toHaveBeenCalledTimes(2)
+    expect(input.value).toBe('')
   })
 
   it('renders activity display text without leaking raw action types', () => {
