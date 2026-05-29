@@ -574,7 +574,27 @@ class TaskControllerTest {
         mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].displayText").exists());
+            .andExpect(jsonPath("$.data[0].displayText").value("Member \u8bc4\u8bba\u4e86\u4efb\u52a1"));
+    }
+
+    @Test
+    void deletedTaskCommentsAndActivitiesReturnNotFound() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Deleted activity");
+
+        mockMvc.perform(delete("/api/tasks/{taskId}", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
+
+        mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
     }
 
     @Test

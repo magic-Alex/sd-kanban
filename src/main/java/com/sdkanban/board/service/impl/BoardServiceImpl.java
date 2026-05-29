@@ -87,6 +87,7 @@ public class BoardServiceImpl implements BoardService {
                 LinkedHashMap::new,
                 Collectors.toList()
             ));
+        CardContext cardContext = cardContext(tasks);
 
         List<BoardColumnTasks> columns = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(projectId).stream()
             .map(column -> new BoardColumnTasks(
@@ -95,7 +96,7 @@ public class BoardServiceImpl implements BoardService {
                 column.getColor(),
                 column.getSortOrder(),
                 column.isDone(),
-                cards(tasksByColumn.getOrDefault(column.getId(), List.of()))
+                cards(tasksByColumn.getOrDefault(column.getId(), List.of()), cardContext)
             ))
             .toList();
         return new BoardResponse(projectId, columns);
@@ -108,13 +109,14 @@ public class BoardServiceImpl implements BoardService {
             ? GROUP_BY_COLUMN
             : GROUP_BY_PROJECT;
         List<Task> tasks = taskRepository.findByAssigneeIdAndDeletedFalseAndArchivedFalseOrderByProjectIdAscColumnIdAscSortOrderAscIdAsc(currentUserId);
+        CardContext cardContext = cardContext(tasks);
         if (GROUP_BY_COLUMN.equals(normalizedGroupBy)) {
-            return new MyTaskBoardResponse(normalizedGroupBy, groupByColumn(tasks));
+            return new MyTaskBoardResponse(normalizedGroupBy, groupByColumn(tasks, cardContext));
         }
-        return new MyTaskBoardResponse(normalizedGroupBy, groupByProject(tasks));
+        return new MyTaskBoardResponse(normalizedGroupBy, groupByProject(tasks, cardContext));
     }
 
-    private List<MyTaskBoardGroup> groupByProject(List<Task> tasks) {
+    private List<MyTaskBoardGroup> groupByProject(List<Task> tasks, CardContext cardContext) {
         Map<Long, Project> projectsById = projectRepository.findAllById(tasks.stream().map(Task::getProjectId).toList())
             .stream()
             .collect(Collectors.toMap(Project::getId, Function.identity()));
@@ -126,12 +128,12 @@ public class BoardServiceImpl implements BoardService {
             .map(entry -> new MyTaskBoardGroup(
                 entry.getKey(),
                 projectsById.get(entry.getKey()).getName(),
-                cards(entry.getValue())
+                cards(entry.getValue(), cardContext)
             ))
             .toList();
     }
 
-    private List<MyTaskBoardGroup> groupByColumn(List<Task> tasks) {
+    private List<MyTaskBoardGroup> groupByColumn(List<Task> tasks, CardContext cardContext) {
         Map<Long, BoardColumn> columnsById = boardColumnRepository.findAllById(tasks.stream().map(Task::getColumnId).toList())
             .stream()
             .collect(Collectors.toMap(BoardColumn::getId, Function.identity()));
@@ -144,12 +146,12 @@ public class BoardServiceImpl implements BoardService {
             .map(entry -> new MyTaskBoardGroup(
                 entry.getKey(),
                 columnsById.get(entry.getKey()).getName(),
-                cards(entry.getValue())
+                cards(entry.getValue(), cardContext)
             ))
             .toList();
     }
 
-    private List<TaskCardResponse> cards(List<Task> tasks) {
+    private CardContext cardContext(List<Task> tasks) {
         Map<Long, UserSummary> usersById = userRepository.findAllById(tasks.stream()
                 .map(Task::getAssigneeId)
                 .filter(Objects::nonNull)
@@ -161,13 +163,16 @@ public class BoardServiceImpl implements BoardService {
             : taskChecklistItemRepository.countByTaskIds(tasks.stream().map(Task::getId).toList())
                 .stream()
                 .collect(Collectors.toMap(TaskChecklistItemRepository.ChecklistCountView::getTaskId, Function.identity()));
+        return new CardContext(usersById, checklistCounts);
+    }
 
+    private List<TaskCardResponse> cards(List<Task> tasks, CardContext cardContext) {
         return tasks.stream()
             .map(task -> {
-                TaskChecklistItemRepository.ChecklistCountView count = checklistCounts.get(task.getId());
+                TaskChecklistItemRepository.ChecklistCountView count = cardContext.checklistCounts().get(task.getId());
                 long doneCount = count == null ? 0 : count.getDoneCount();
                 long totalCount = count == null ? 0 : count.getTotalCount();
-                return TaskCardResponse.from(task, usersById.get(task.getAssigneeId()), doneCount, totalCount);
+                return TaskCardResponse.from(task, cardContext.usersById().get(task.getAssigneeId()), doneCount, totalCount);
             })
             .toList();
     }
@@ -184,5 +189,11 @@ public class BoardServiceImpl implements BoardService {
             return null;
         }
         return keyword.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private record CardContext(
+        Map<Long, UserSummary> usersById,
+        Map<Long, TaskChecklistItemRepository.ChecklistCountView> checklistCounts
+    ) {
     }
 }

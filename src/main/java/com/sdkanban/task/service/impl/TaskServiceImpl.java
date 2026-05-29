@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -348,8 +349,10 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskCommentResponse> comments(Long taskId, Long currentUserId) {
         Task task = requireTask(taskId);
         projectService.requireMember(task.getProjectId(), currentUserId);
-        return taskCommentRepository.findByTaskIdOrderByCreatedAtDescIdDesc(taskId).stream()
-            .map(comment -> TaskCommentResponse.from(comment, userSummary(comment.getAuthorId())))
+        List<TaskComment> comments = taskCommentRepository.findByTaskIdOrderByCreatedAtDescIdDesc(taskId);
+        Map<Long, UserSummary> authorsById = userSummaries(comments.stream().map(TaskComment::getAuthorId).toList());
+        return comments.stream()
+            .map(comment -> TaskCommentResponse.from(comment, requiredUserSummary(authorsById, comment.getAuthorId())))
             .toList();
     }
 
@@ -358,9 +361,14 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskActivityResponse> activities(Long taskId, Long currentUserId) {
         Task task = requireTask(taskId);
         projectService.requireMember(task.getProjectId(), currentUserId);
-        return taskActivityRepository.findByTaskIdAndProjectIdOrderByCreatedAtDescIdDesc(taskId, task.getProjectId()).stream()
+        List<TaskActivity> activities = taskActivityRepository.findByTaskIdAndProjectIdOrderByCreatedAtDescIdDesc(taskId, task.getProjectId());
+        Map<Long, UserSummary> actorsById = userSummaries(activities.stream()
+            .map(TaskActivity::getActorId)
+            .filter(Objects::nonNull)
+            .toList());
+        return activities.stream()
             .map(activity -> {
-                UserSummary actor = activity.getActorId() == null ? null : userSummary(activity.getActorId());
+                UserSummary actor = activity.getActorId() == null ? null : requiredUserSummary(actorsById, activity.getActorId());
                 return new TaskActivityResponse(
                     activity.getId(),
                     activity.getTaskId(),
@@ -502,6 +510,25 @@ public class TaskServiceImpl implements TaskService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "User not found"));
         return UserSummary.from(user);
+    }
+
+    private Map<Long, UserSummary> userSummaries(Collection<Long> userIds) {
+        Set<Long> distinctIds = userIds.stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        if (distinctIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findAllById(distinctIds).stream()
+            .collect(Collectors.toMap(User::getId, UserSummary::from));
+    }
+
+    private UserSummary requiredUserSummary(Map<Long, UserSummary> usersById, Long userId) {
+        UserSummary user = usersById.get(userId);
+        if (user == null) {
+            throw BusinessException.notFound("USER_NOT_FOUND", "User not found");
+        }
+        return user;
     }
 
     private void recordActivity(Task task, Long actorId, String actionType, String fieldName, String oldValue, String newValue) {
