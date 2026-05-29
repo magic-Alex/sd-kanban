@@ -283,6 +283,68 @@ class TaskControllerTest {
     }
 
     @Test
+    void projectMemberCanSearchArchivedTasks() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long archivedTaskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Archived onboarding", fixture.member().id());
+        createTask(fixture.member().token(), fixture.projectId(), columnId, "Visible task", fixture.member().id());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", archivedTaskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/projects/{projectId}/tasks/archived?keyword=onboarding&assigneeId={assigneeId}&type=TASK&priority=MEDIUM", fixture.projectId(), fixture.member().id())
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].id").value(archivedTaskId))
+            .andExpect(jsonPath("$.data[0].title").value("Archived onboarding"));
+    }
+
+    @Test
+    void permittedUserCanRestoreArchivedTaskToBoard() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long columnId = firstColumnId(fixture.projectId());
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), columnId, "Restore me", fixture.member().id());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/restore", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(taskId));
+
+        mockMvc.perform(get("/api/projects/{projectId}/board", fixture.projectId())
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].id").value(taskId));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT is_archived FROM tasks WHERE id = ?", Boolean.class, taskId)).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM task_activities WHERE task_id = ? AND action_type = 'TASK_RESTORED'",
+            Integer.class,
+            taskId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void ordinaryProjectMemberCannotRestoreUnrelatedTask() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.owner().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Owner task", fixture.owner().id());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/archive", taskId)
+                .header("Authorization", "Bearer " + fixture.owner().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/restore", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("TASK_ACTION_FORBIDDEN"));
+    }
+
+    @Test
     void projectMemberCanSoftDeleteTaskAndDetailReturnsNotFound() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Delete me");

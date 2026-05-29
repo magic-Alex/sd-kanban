@@ -10,6 +10,8 @@ import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
 
+import java.util.List;
+
 public interface TaskService {
     TaskResponse create(Long projectId, CreateTaskRequest request, Long currentUserId);
 
@@ -20,6 +22,10 @@ public interface TaskService {
     TaskResponse updatePosition(Long taskId, UpdateTaskPositionRequest request, Long currentUserId);
 
     TaskResponse archive(Long taskId, Long currentUserId);
+
+    List<TaskResponse> archivedTasks(Long projectId, Long assigneeId, String type, String priority, String keyword, Long currentUserId);
+
+    TaskResponse restore(Long taskId, Long currentUserId);
 
     void delete(Long taskId, Long currentUserId);
 

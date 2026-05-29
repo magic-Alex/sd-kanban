@@ -242,6 +242,10 @@ public class Task {
         this.archived = true;
     }
 
+    public void restore() {
+        this.archived = false;
+    }
+
     public void delete() {
         this.deleted = true;
     }

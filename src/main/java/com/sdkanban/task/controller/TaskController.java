@@ -24,7 +24,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
@@ -77,6 +80,26 @@ public class TaskController {
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(taskService.archive(taskId, currentUserId(user)));
+    }
+
+    @GetMapping("/projects/{projectId}/tasks/archived")
+    ApiResponse<List<TaskResponse>> archivedTasks(
+        @PathVariable Long projectId,
+        @RequestParam(required = false) Long assigneeId,
+        @RequestParam(required = false, name = "type") String type,
+        @RequestParam(required = false) String priority,
+        @RequestParam(required = false) String keyword,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.archivedTasks(projectId, assigneeId, type, priority, keyword, currentUserId(user)));
+    }
+
+    @PatchMapping("/tasks/{taskId}/restore")
+    ApiResponse<TaskResponse> restore(
+        @PathVariable Long taskId,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.restore(taskId, currentUserId(user)));
     }
 
     @DeleteMapping("/tasks/{taskId}")

@@ -6,8 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
+    Optional<Task> findByIdAndProjectId(Long id, Long projectId);
+
     @Query("""
         select coalesce(max(task.sortOrder), -1)
         from Task task
@@ -38,6 +41,30 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findProjectBoardTasks(
         @Param("projectId") Long projectId,
         @Param("sprintId") Long sprintId,
+        @Param("assigneeId") Long assigneeId,
+        @Param("taskType") String taskType,
+        @Param("priority") String priority,
+        @Param("keyword") String keyword
+    );
+
+    @Query("""
+        select task
+        from Task task
+        where task.projectId = :projectId
+          and task.deleted = false
+          and task.archived = true
+          and (:assigneeId is null or (:assigneeId = 0 and task.assigneeId is null) or task.assigneeId = :assigneeId)
+          and (:taskType is null or task.taskType = :taskType)
+          and (:priority is null or task.priority = :priority)
+          and (
+              :keyword is null
+              or lower(task.title) like concat('%', :keyword, '%')
+              or lower(coalesce(task.description, '')) like concat('%', :keyword, '%')
+          )
+        order by task.updatedAt desc, task.id desc
+        """)
+    List<Task> findArchivedTasks(
+        @Param("projectId") Long projectId,
         @Param("assigneeId") Long assigneeId,
         @Param("taskType") String taskType,
         @Param("priority") String priority,

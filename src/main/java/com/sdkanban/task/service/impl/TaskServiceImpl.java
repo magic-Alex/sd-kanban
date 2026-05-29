@@ -1,5 +1,6 @@
 package com.sdkanban.task.service.impl;
 
+import com.sdkanban.board.entity.BoardColumn;
 import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
 import com.sdkanban.project.entity.ProjectMember;
@@ -225,6 +226,37 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponse> archivedTasks(Long projectId, Long assigneeId, String type, String priority, String keyword, Long currentUserId) {
+        projectService.requireMember(projectId, currentUserId);
+        return taskRepository.findArchivedTasks(projectId, assigneeId, normalize(type), normalize(priority), keyword(keyword)).stream()
+            .map(this::toTaskResponse)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse restore(Long taskId, Long currentUserId) {
+        Task task = taskRepository.findById(taskId)
+            .filter(candidate -> !candidate.isDeleted())
+            .orElseThrow(() -> BusinessException.notFound("TASK_NOT_FOUND", "Task not found"));
+        requireDestructiveTaskActor(task, currentUserId);
+        if (boardColumnRepository.findByIdAndProjectId(task.getColumnId(), task.getProjectId()).isEmpty()) {
+            Long fallbackColumnId = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(task.getProjectId()).stream()
+                .findFirst()
+                .map(BoardColumn::getId)
+                .orElseThrow(() -> BusinessException.notFound("BOARD_COLUMN_NOT_FOUND", "Board column not found"));
+            task.changeColumnId(fallbackColumnId);
+        }
+        task.changeSortOrder(taskRepository.maxSortOrderInColumn(task.getProjectId(), task.getColumnId()) + 1);
+        if (task.isArchived()) {
+            task.restore();
+            recordActivity(task, currentUserId, "TASK_RESTORED", null, null, null);
+        }
+        return toTaskResponse(task);
+    }
+
+    @Override
     @Transactional
     public void delete(Long taskId, Long currentUserId) {
         Task task = requireTask(taskId);
@@ -407,6 +439,20 @@ public class TaskServiceImpl implements TaskService {
             return fallback;
         }
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalize(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String keyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        return keyword.trim().toLowerCase(Locale.ROOT);
     }
 
     private String normalizeColor(String color) {
