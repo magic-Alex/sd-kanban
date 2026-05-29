@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { addTaskComment, archiveTask, deleteTask, fetchTask, updateTask } from '../src/api/tasks'
+import {
+  addTaskComment,
+  archiveTask,
+  deleteTask,
+  fetchTask,
+  fetchTaskActivities,
+  fetchTaskComments,
+  restoreTask,
+  updateTask,
+} from '../src/api/tasks'
+import { fetchChecklistItems } from '../src/api/checklist'
 import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('../src/api/tasks', () => ({
@@ -8,7 +18,14 @@ vi.mock('../src/api/tasks', () => ({
   archiveTask: vi.fn(),
   deleteTask: vi.fn(),
   fetchTask: vi.fn(),
+  fetchTaskActivities: vi.fn(),
+  fetchTaskComments: vi.fn(),
+  restoreTask: vi.fn(),
   updateTask: vi.fn(),
+}))
+
+vi.mock('../src/api/checklist', () => ({
+  fetchChecklistItems: vi.fn(),
 }))
 
 const taskA = {
@@ -55,7 +72,14 @@ describe('tasks store', () => {
     vi.mocked(archiveTask).mockReset()
     vi.mocked(deleteTask).mockReset()
     vi.mocked(fetchTask).mockReset()
+    vi.mocked(fetchTaskActivities).mockReset()
+    vi.mocked(fetchTaskComments).mockReset()
+    vi.mocked(fetchChecklistItems).mockReset()
+    vi.mocked(restoreTask).mockReset()
     vi.mocked(updateTask).mockReset()
+    vi.mocked(fetchTaskActivities).mockResolvedValue([])
+    vi.mocked(fetchTaskComments).mockResolvedValue([])
+    vi.mocked(fetchChecklistItems).mockResolvedValue([])
   })
 
   it('does not replace the active task with a stale save response', async () => {
@@ -173,6 +197,21 @@ describe('tasks store', () => {
     expect(tasks.loading).toBe(false)
   })
 
+  it('loads task detail side data when opening a task', async () => {
+    vi.mocked(fetchTask).mockResolvedValue(taskA)
+    vi.mocked(fetchTaskComments).mockResolvedValue([{ id: 1, taskId: taskA.id, author: taskA.creator, content: 'Hello', createdAt: '2026-05-29T10:00:00', updatedAt: '2026-05-29T10:00:00' }])
+    vi.mocked(fetchTaskActivities).mockResolvedValue([{ id: 2, taskId: taskA.id, actor: taskA.creator, actionType: 'TASK_CREATED', fieldName: null, oldValue: null, newValue: null, displayText: 'Alex 创建了任务', createdAt: '2026-05-29T10:00:01' }])
+    vi.mocked(fetchChecklistItems).mockResolvedValue([{ id: 3, taskId: taskA.id, projectId: taskA.projectId, title: 'Check API', done: false, sortOrder: 0, createdBy: taskA.creator, completedBy: null, completedAt: null, createdAt: '2026-05-29T10:00:02', updatedAt: '2026-05-29T10:00:02' }])
+
+    const tasks = useTasksStore()
+    await tasks.openTask(taskA.id)
+
+    expect(tasks.activeTask).toEqual(taskA)
+    expect(tasks.comments).toHaveLength(1)
+    expect(tasks.activities[0].displayText).toBe('Alex 创建了任务')
+    expect(tasks.checklistItems[0].title).toBe('Check API')
+  })
+
   it('does not close a newer task drawer after a stale archive succeeds', async () => {
     const archive = deferred<void>()
     vi.mocked(archiveTask).mockReturnValue(archive.promise)
@@ -261,5 +300,17 @@ describe('tasks store', () => {
     expect(tasks.drawerOpen).toBe(true)
     expect(tasks.actionError).toBeNull()
     expect(tasks.actionLoading).toBe(false)
+  })
+
+  it('restores the active archived task and closes the drawer', async () => {
+    vi.mocked(restoreTask).mockResolvedValue(taskA)
+    const tasks = useTasksStore()
+    tasks.activeTask = taskA
+    tasks.drawerOpen = true
+
+    await tasks.restoreActiveTask()
+
+    expect(restoreTask).toHaveBeenCalledWith(taskA.id)
+    expect(tasks.drawerOpen).toBe(false)
   })
 })

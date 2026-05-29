@@ -14,6 +14,8 @@ export interface TaskCard {
   storyPoints: number | null
   dueDate: string | null
   sortOrder: number
+  checklistDoneCount: number
+  checklistTotalCount: number
 }
 
 export interface BoardColumn {

@@ -5,7 +5,16 @@ import MyTaskBoardView from '../src/views/MyTaskBoardView.vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
 import { fetchMyTaskBoard, fetchProjectBoard } from '../src/api/board'
 import { fetchProjectMembers } from '../src/api/projects'
-import { archiveTask, deleteTask, fetchTask, updateTask, updateTaskPosition } from '../src/api/tasks'
+import {
+  archiveTask,
+  deleteTask,
+  fetchTask,
+  fetchTaskActivities,
+  fetchTaskComments,
+  updateTask,
+  updateTaskPosition,
+} from '../src/api/tasks'
+import { fetchChecklistItems } from '../src/api/checklist'
 import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('../src/api/board', () => ({
@@ -18,8 +27,14 @@ vi.mock('../src/api/tasks', () => ({
   archiveTask: vi.fn(),
   deleteTask: vi.fn(),
   fetchTask: vi.fn(),
+  fetchTaskActivities: vi.fn(),
+  fetchTaskComments: vi.fn(),
   updateTask: vi.fn(),
   updateTaskPosition: vi.fn(),
+}))
+
+vi.mock('../src/api/checklist', () => ({
+  fetchChecklistItems: vi.fn(),
 }))
 
 vi.mock('../src/api/projects', () => ({
@@ -47,6 +62,8 @@ const taskCard = {
   storyPoints: null,
   dueDate: null,
   sortOrder: 0,
+  checklistDoneCount: 0,
+  checklistTotalCount: 0,
 }
 
 const task = {
@@ -85,6 +102,9 @@ describe('MyTaskBoardView', () => {
     vi.mocked(fetchProjectBoard).mockReset()
     vi.mocked(fetchProjectMembers).mockReset()
     vi.mocked(fetchTask).mockReset()
+    vi.mocked(fetchTaskActivities).mockReset()
+    vi.mocked(fetchTaskComments).mockReset()
+    vi.mocked(fetchChecklistItems).mockReset()
     vi.mocked(updateTask).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
     vi.mocked(archiveTask).mockReset()
@@ -96,6 +116,9 @@ describe('MyTaskBoardView', () => {
     vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
     vi.mocked(fetchProjectMembers).mockResolvedValue(members)
     vi.mocked(fetchTask).mockResolvedValue(task)
+    vi.mocked(fetchTaskActivities).mockResolvedValue([])
+    vi.mocked(fetchTaskComments).mockResolvedValue([])
+    vi.mocked(fetchChecklistItems).mockResolvedValue([])
     vi.mocked(updateTask).mockResolvedValue(task)
     vi.mocked(updateTaskPosition).mockResolvedValue(undefined)
     vi.mocked(archiveTask).mockResolvedValue(task)

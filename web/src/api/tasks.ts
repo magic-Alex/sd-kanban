@@ -81,7 +81,26 @@ export interface TaskActivity {
   fieldName: string | null
   oldValue: string | null
   newValue: string | null
+  displayText: string
   createdAt: string
+}
+
+export interface ArchivedTaskQuery {
+  assigneeId?: number | string | null
+  type?: string
+  priority?: string
+  keyword?: string
+}
+
+function queryString(filters: ArchivedTaskQuery) {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      params.set(key, String(value).trim())
+    }
+  })
+  const query = params.toString()
+  return query ? `?${query}` : ''
 }
 
 export function fetchTask(taskId: number | string): Promise<TaskResponse> {
@@ -110,10 +129,30 @@ export async function archiveTask(taskId: number): Promise<TaskResponse> {
   return response.data.data
 }
 
+export async function restoreTask(taskId: number): Promise<TaskResponse> {
+  const response = await http.patch(`/tasks/${taskId}/restore`)
+  return response.data.data
+}
+
 export async function deleteTask(taskId: number): Promise<void> {
   await http.delete(`/tasks/${taskId}`)
 }
 
 export function addTaskComment(taskId: number, content: string): Promise<TaskComment> {
   return postData<TaskComment, { content: string }>(`/tasks/${taskId}/comments`, { content })
+}
+
+export function fetchTaskComments(taskId: number): Promise<TaskComment[]> {
+  return getData<TaskComment[]>(`/tasks/${taskId}/comments`)
+}
+
+export function fetchTaskActivities(taskId: number): Promise<TaskActivity[]> {
+  return getData<TaskActivity[]>(`/tasks/${taskId}/activities`)
+}
+
+export function fetchArchivedTasks(
+  projectId: number | string,
+  filters: ArchivedTaskQuery = {},
+): Promise<TaskResponse[]> {
+  return getData<TaskResponse[]>(`/projects/${projectId}/tasks/archived${queryString(filters)}`)
 }
