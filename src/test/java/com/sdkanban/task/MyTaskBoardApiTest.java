@@ -36,6 +36,7 @@ class MyTaskBoardApiTest {
     void deleteData() {
         jdbcTemplate.update("DELETE FROM task_activities");
         jdbcTemplate.update("DELETE FROM task_comments");
+        jdbcTemplate.update("DELETE FROM task_checklist_items");
         jdbcTemplate.update("DELETE FROM task_tag_links");
         jdbcTemplate.update("DELETE FROM tasks");
         jdbcTemplate.update("DELETE FROM task_tags");
@@ -127,6 +128,31 @@ class MyTaskBoardApiTest {
             .andExpect(jsonPath("$.data.groups.length()").value(0));
     }
 
+    @Test
+    void myTaskBoardCardsIncludeChecklistProgress() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Checklist mine"
+        );
+        long doneItemId = createChecklistItem(fixture.member().token(), taskId, "Done item");
+        createChecklistItem(fixture.member().token(), taskId, "Open item");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/checklist/{itemId}/toggle", taskId, doneItemId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/mine/board")
+                .queryParam("groupBy", "project")
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].checklistDoneCount").value(1))
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].checklistTotalCount").value(2));
+    }
+
     private Fixture fixtureWithOwnerAndMember() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         RegisteredUser member = register("member", "Member");
@@ -146,6 +172,22 @@ class MyTaskBoardApiTest {
                       "assigneeId": %d
                     }
                     """.formatted(title, columnId, assigneeId)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private long createChecklistItem(String token, long taskId, String title) throws Exception {
+        String response = mockMvc.perform(post("/api/tasks/{taskId}/checklist", taskId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "%s"
+                    }
+                    """.formatted(title)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

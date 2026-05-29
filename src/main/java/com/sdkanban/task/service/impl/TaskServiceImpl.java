@@ -13,6 +13,7 @@ import com.sdkanban.sprint.repository.SprintRepository;
 import com.sdkanban.task.dto.AddTaskCommentRequest;
 import com.sdkanban.task.dto.CreateTaskRequest;
 import com.sdkanban.task.dto.CreateTaskTagRequest;
+import com.sdkanban.task.dto.TaskActivityResponse;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
@@ -342,6 +343,39 @@ public class TaskServiceImpl implements TaskService {
         return TaskCommentResponse.from(comment, userSummary(currentUserId));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskCommentResponse> comments(Long taskId, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        return taskCommentRepository.findByTaskIdOrderByCreatedAtDescIdDesc(taskId).stream()
+            .map(comment -> TaskCommentResponse.from(comment, userSummary(comment.getAuthorId())))
+            .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskActivityResponse> activities(Long taskId, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        return taskActivityRepository.findByTaskIdAndProjectIdOrderByCreatedAtDescIdDesc(taskId, task.getProjectId()).stream()
+            .map(activity -> {
+                UserSummary actor = activity.getActorId() == null ? null : userSummary(activity.getActorId());
+                return new TaskActivityResponse(
+                    activity.getId(),
+                    activity.getTaskId(),
+                    actor,
+                    activity.getActionType(),
+                    activity.getFieldName(),
+                    activity.getOldValue(),
+                    activity.getNewValue(),
+                    displayText(activity, actor),
+                    activity.getCreatedAt()
+                );
+            })
+            .toList();
+    }
+
     private void notifyAssignee(Task task, Long actorId, Long assigneeId) {
         notificationService.notifyUsers(
             List.of(assigneeId),
@@ -480,6 +514,42 @@ public class TaskServiceImpl implements TaskService {
             oldValue,
             newValue
         ));
+    }
+
+    private String displayText(TaskActivity activity, UserSummary actor) {
+        String actorName = actor == null ? "系统" : actor.nickname();
+        return switch (activity.getActionType()) {
+            case "TASK_CREATED" -> actorName + " 创建了任务";
+            case "TASK_UPDATED" -> actorName + " 更新了 " + displayField(activity.getFieldName()) + "：" + valueText(activity.getOldValue()) + " -> " + valueText(activity.getNewValue());
+            case "COMMENT_ADDED" -> actorName + " 评论了任务";
+            case "TASK_ARCHIVED" -> actorName + " 归档了任务";
+            case "TASK_RESTORED" -> actorName + " 恢复了任务";
+            case "CHECKLIST_ITEM_CREATED" -> actorName + " 添加了检查项：" + valueText(activity.getNewValue());
+            case "CHECKLIST_ITEM_COMPLETED" -> actorName + " 完成了检查项：" + valueText(activity.getNewValue());
+            case "CHECKLIST_ITEM_REOPENED" -> actorName + " 重新打开了检查项：" + valueText(activity.getNewValue());
+            case "CHECKLIST_ITEM_DELETED" -> actorName + " 删除了检查项：" + valueText(activity.getOldValue());
+            default -> actorName + " 更新了任务";
+        };
+    }
+
+    private String displayField(String fieldName) {
+        return switch (String.valueOf(fieldName)) {
+            case "title" -> "标题";
+            case "description" -> "描述";
+            case "taskType" -> "类型";
+            case "priority" -> "优先级";
+            case "assigneeId" -> "负责人";
+            case "columnId" -> "看板列";
+            case "dueDate" -> "截止日期";
+            case "storyPoints" -> "故事点";
+            case "estimatedHours" -> "预计工时";
+            case "acceptanceCriteria" -> "验收标准";
+            default -> String.valueOf(fieldName);
+        };
+    }
+
+    private String valueText(String value) {
+        return value == null ? "空" : value;
     }
 
     private <T> void change(Task task, Long actorId, String fieldName, T oldValue, T newValue, ValueWriter<T> writer) {

@@ -38,6 +38,7 @@ class TaskControllerTest {
         jdbcTemplate.update("DELETE FROM notifications");
         jdbcTemplate.update("DELETE FROM task_activities");
         jdbcTemplate.update("DELETE FROM task_comments");
+        jdbcTemplate.update("DELETE FROM task_checklist_items");
         jdbcTemplate.update("DELETE FROM task_tag_links");
         jdbcTemplate.update("DELETE FROM tasks");
         jdbcTemplate.update("DELETE FROM task_tags");
@@ -548,6 +549,32 @@ class TaskControllerTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.code").value("PROJECT_MEMBER_REQUIRED"));
+    }
+
+    @Test
+    void taskCommentsAndActivitiesCanBeListedWithDisplayText() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Activity task");
+
+        mockMvc.perform(post("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "Ready for review"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/{taskId}/comments", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].content").value("Ready for review"));
+
+        mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].displayText").exists());
     }
 
     @Test

@@ -13,6 +13,7 @@ import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.project.service.ProjectService;
 import com.sdkanban.task.entity.Task;
+import com.sdkanban.task.repository.TaskChecklistItemRepository;
 import com.sdkanban.task.repository.TaskRepository;
 import com.sdkanban.user.dto.UserSummary;
 import com.sdkanban.user.entity.User;
@@ -41,6 +42,7 @@ public class BoardServiceImpl implements BoardService {
     private final ProjectRepository projectRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final TaskRepository taskRepository;
+    private final TaskChecklistItemRepository taskChecklistItemRepository;
     private final UserRepository userRepository;
 
     public BoardServiceImpl(
@@ -48,12 +50,14 @@ public class BoardServiceImpl implements BoardService {
         ProjectRepository projectRepository,
         BoardColumnRepository boardColumnRepository,
         TaskRepository taskRepository,
+        TaskChecklistItemRepository taskChecklistItemRepository,
         UserRepository userRepository
     ) {
         this.projectService = projectService;
         this.projectRepository = projectRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.taskRepository = taskRepository;
+        this.taskChecklistItemRepository = taskChecklistItemRepository;
         this.userRepository = userRepository;
     }
 
@@ -152,9 +156,19 @@ public class BoardServiceImpl implements BoardService {
                 .toList())
             .stream()
             .collect(Collectors.toMap(User::getId, UserSummary::from));
+        Map<Long, TaskChecklistItemRepository.ChecklistCountView> checklistCounts = tasks.isEmpty()
+            ? Map.of()
+            : taskChecklistItemRepository.countByTaskIds(tasks.stream().map(Task::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(TaskChecklistItemRepository.ChecklistCountView::getTaskId, Function.identity()));
 
         return tasks.stream()
-            .map(task -> TaskCardResponse.from(task, usersById.get(task.getAssigneeId())))
+            .map(task -> {
+                TaskChecklistItemRepository.ChecklistCountView count = checklistCounts.get(task.getId());
+                long doneCount = count == null ? 0 : count.getDoneCount();
+                long totalCount = count == null ? 0 : count.getTotalCount();
+                return TaskCardResponse.from(task, usersById.get(task.getAssigneeId()), doneCount, totalCount);
+            })
             .toList();
     }
 

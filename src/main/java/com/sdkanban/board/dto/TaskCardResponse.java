@@ -18,9 +18,11 @@ public record TaskCardResponse(
     String priority,
     BigDecimal storyPoints,
     LocalDate dueDate,
-    Integer sortOrder
+    Integer sortOrder,
+    long checklistDoneCount,
+    long checklistTotalCount
 ) {
-    public static TaskCardResponse from(Task task, UserSummary assignee) {
+    public static TaskCardResponse from(Task task, UserSummary assignee, long checklistDoneCount, long checklistTotalCount) {
         return new TaskCardResponse(
             task.getId(),
             task.getProjectId(),
@@ -33,7 +35,9 @@ public record TaskCardResponse(
             task.getPriority(),
             task.getStoryPoints(),
             task.getDueDate(),
-            task.getSortOrder()
+            task.getSortOrder(),
+            checklistDoneCount,
+            checklistTotalCount
         );
     }
 }

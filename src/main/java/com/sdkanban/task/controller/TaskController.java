@@ -5,6 +5,7 @@ import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.task.dto.AddTaskCommentRequest;
 import com.sdkanban.task.dto.CreateTaskRequest;
 import com.sdkanban.task.dto.CreateTaskTagRequest;
+import com.sdkanban.task.dto.TaskActivityResponse;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
@@ -136,6 +137,22 @@ public class TaskController {
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(taskService.addComment(taskId, request, currentUserId(user)));
+    }
+
+    @GetMapping("/tasks/{taskId}/comments")
+    ApiResponse<List<TaskCommentResponse>> comments(
+        @PathVariable Long taskId,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.comments(taskId, currentUserId(user)));
+    }
+
+    @GetMapping("/tasks/{taskId}/activities")
+    ApiResponse<List<TaskActivityResponse>> activities(
+        @PathVariable Long taskId,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.activities(taskId, currentUserId(user)));
     }
 
     private Long currentUserId(User user) {
