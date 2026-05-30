@@ -35,11 +35,11 @@ JOIN (
                 project_id,
                 sort_order,
                 CASE
-                    WHEN sort_order = 0 AND name = 'Backlog' THEN 'BACKLOG'
-                    WHEN sort_order = 1 AND name = 'Ready' THEN 'READY'
-                    WHEN sort_order = 2 AND name = 'In Progress' THEN 'IN_PROGRESS'
-                    WHEN sort_order = 3 AND name = 'Testing' THEN 'TESTING'
-                    WHEN sort_order = 4 AND name = 'Done' THEN 'DONE'
+                    WHEN sort_order = 0 AND name = 'Backlog' AND color = '#64748b' AND wip_limit IS NULL AND is_done = false THEN 'BACKLOG'
+                    WHEN sort_order = 1 AND name = 'Ready' AND color = '#0ea5e9' AND wip_limit IS NULL AND is_done = false THEN 'READY'
+                    WHEN sort_order = 2 AND name = 'In Progress' AND color = '#f59e0b' AND wip_limit IS NULL AND is_done = false THEN 'IN_PROGRESS'
+                    WHEN sort_order = 3 AND name = 'Testing' AND color = '#8b5cf6' AND wip_limit IS NULL AND is_done = false THEN 'TESTING'
+                    WHEN sort_order = 4 AND name = 'Done' AND color = '#22c55e' AND wip_limit IS NULL AND is_done = true THEN 'DONE'
                     ELSE NULL
                 END AS template_key
             FROM board_columns
