@@ -175,6 +175,65 @@ class MyTaskBoardApiTest {
             .andExpect(jsonPath("$.data.groups[0].tasks[0].checklistTotalCount").value(2));
     }
 
+    @Test
+    void myTaskBoardKeepsTasksInCustomTemplateColumnsVisible() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long customColumnId = createCustomColumn(
+            fixture.projectId(),
+            "CUSTOM_LEGACY",
+            "Legacy Queue",
+            "#334155",
+            99,
+            false
+        );
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            customColumnId,
+            fixture.member().id(),
+            "Legacy mine"
+        );
+
+        mockMvc.perform(get("/api/tasks/mine/board")
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(6))
+            .andExpect(jsonPath("$.data.groups[0].templateKey").value("BACKLOG"))
+            .andExpect(jsonPath("$.data.groups[4].templateKey").value("DONE"))
+            .andExpect(jsonPath("$.data.groups[5].templateKey").value("CUSTOM_LEGACY"))
+            .andExpect(jsonPath("$.data.groups[5].name").value("Legacy Queue"))
+            .andExpect(jsonPath("$.data.groups[5].color").value("#334155"))
+            .andExpect(jsonPath("$.data.groups[5].sortOrder").value(99))
+            .andExpect(jsonPath("$.data.groups[5].isDone").value(false))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].id").value(taskId))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].title").value("Legacy mine"))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].projectCode").value(fixture.projectCode()))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].projectName").value("Delivery"))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].projectColor").value(fixture.projectColor()))
+            .andExpect(jsonPath("$.data.groups[5].tasks[0].columnTemplateKey").value("CUSTOM_LEGACY"));
+    }
+
+    @Test
+    void myTaskBoardIncludesNewGlobalTemplateWithoutTasks() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        upsertTemplate("REVIEW", "\u8bc4\u5ba1", "Review", "#14b8a6", 5, null, false);
+
+        mockMvc.perform(get("/api/tasks/mine/board")
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(6))
+            .andExpect(jsonPath("$.data.groups[0].templateKey").value("BACKLOG"))
+            .andExpect(jsonPath("$.data.groups[4].templateKey").value("DONE"))
+            .andExpect(jsonPath("$.data.groups[5].templateKey").value("REVIEW"))
+            .andExpect(jsonPath("$.data.groups[5].name").value("\u8bc4\u5ba1\uff08Review\uff09"))
+            .andExpect(jsonPath("$.data.groups[5].color").value("#14b8a6"))
+            .andExpect(jsonPath("$.data.groups[5].sortOrder").value(5))
+            .andExpect(jsonPath("$.data.groups[5].isDone").value(false))
+            .andExpect(jsonPath("$.data.groups[5].tasks.length()").value(0));
+    }
+
     private Fixture fixtureWithOwnerAndMember() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         RegisteredUser member = register("member", "Member");
@@ -222,6 +281,34 @@ class MyTaskBoardApiTest {
             "SELECT id FROM board_columns WHERE project_id = ? ORDER BY sort_order",
             (rs, rowNum) -> rs.getLong("id"),
             projectId
+        );
+    }
+
+    private long createCustomColumn(
+        long projectId,
+        String templateKey,
+        String name,
+        String color,
+        int sortOrder,
+        boolean done
+    ) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_columns (project_id, template_key, name, color, sort_order, is_done)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            projectId,
+            templateKey,
+            name,
+            color,
+            sortOrder,
+            done
+        );
+        return jdbcTemplate.queryForObject(
+            "SELECT id FROM board_columns WHERE project_id = ? AND template_key = ? ORDER BY id DESC LIMIT 1",
+            Long.class,
+            projectId,
+            templateKey
         );
     }
 

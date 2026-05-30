@@ -12,6 +12,7 @@ import com.sdkanban.project.entity.Project;
 import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.project.service.ProjectService;
+import com.sdkanban.settings.entity.BoardColumnTemplate;
 import com.sdkanban.settings.repository.BoardColumnTemplateRepository;
 import com.sdkanban.task.entity.Task;
 import com.sdkanban.task.repository.TaskChecklistItemRepository;
@@ -24,11 +25,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -123,8 +127,13 @@ public class BoardServiceImpl implements BoardService {
                 Collectors.toList()
             ));
 
-        return boardColumnTemplateRepository.findByOrderBySortOrderAscIdAsc()
-            .stream()
+        List<BoardColumnTemplate> templates = boardColumnTemplateRepository.findByOrderBySortOrderAscIdAsc();
+        Set<String> currentTemplateKeys = templates.stream()
+            .map(BoardColumnTemplate::getTemplateKey)
+            .collect(Collectors.toSet());
+
+        List<MyTaskBoardGroup> groups = new ArrayList<>();
+        templates.stream()
             .map(template -> new MyTaskBoardGroup(
                 template.getTemplateKey(),
                 template.getDisplayName(),
@@ -133,7 +142,45 @@ public class BoardServiceImpl implements BoardService {
                 template.isDone(),
                 cards(tasksByTemplate.getOrDefault(template.getTemplateKey(), List.of()), cardContext)
             ))
+            .forEach(groups::add);
+        groups.addAll(fallbackTemplateGroups(tasksByTemplate, currentTemplateKeys, cardContext));
+        return groups;
+    }
+
+    private List<MyTaskBoardGroup> fallbackTemplateGroups(
+        Map<String, List<Task>> tasksByTemplate,
+        Set<String> currentTemplateKeys,
+        CardContext cardContext
+    ) {
+        return tasksByTemplate.entrySet()
+            .stream()
+            .filter(entry -> !currentTemplateKeys.contains(entry.getKey()))
+            .map(entry -> {
+                BoardColumn column = representativeColumn(entry.getValue(), cardContext);
+                return new MyTaskBoardGroup(
+                    entry.getKey(),
+                    column.getName(),
+                    column.getColor(),
+                    column.getSortOrder(),
+                    column.isDone(),
+                    cards(entry.getValue(), cardContext)
+                );
+            })
+            .sorted(Comparator
+                .comparing(MyTaskBoardGroup::sortOrder)
+                .thenComparing(MyTaskBoardGroup::templateKey))
             .toList();
+    }
+
+    private BoardColumn representativeColumn(List<Task> tasks, CardContext cardContext) {
+        return tasks.stream()
+            .map(task -> cardContext.columnsById().get(task.getColumnId()))
+            .filter(Objects::nonNull)
+            .min(Comparator
+                .comparing(BoardColumn::getProjectId)
+                .thenComparing(BoardColumn::getSortOrder)
+                .thenComparing(BoardColumn::getId))
+            .orElseThrow();
     }
 
     private CardContext cardContext(List<Task> tasks) {
