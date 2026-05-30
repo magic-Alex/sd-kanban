@@ -93,6 +93,10 @@ describe('ProjectListView', () => {
       description: 'Build platform work',
     })
     expect(mockedRouter.push).toHaveBeenCalledWith('/projects/8')
+    expect((wrapper.get('input[required][maxlength="120"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('input[autocomplete="off"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('input[type="color"]').element as HTMLInputElement).value).toBe('#0ea5e9')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
   it('shows project code and color swatch in the project list', async () => {

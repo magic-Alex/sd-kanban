@@ -119,11 +119,13 @@ describe('ProjectDetailView', () => {
     expect(fetchProject).toHaveBeenCalledWith('7')
     expect(fetchProjectMembers).toHaveBeenCalledWith('7')
     expect(wrapper.text()).toContain('OPS')
+    expect(wrapper.findAll('.panel-block')[0].text()).toContain('Daily work board')
     expect(wrapper.text()).toContain('负责人')
     expect(wrapper.text()).toContain('成员')
     expect(wrapper.text()).toContain('Developer')
     const swatch = wrapper.get('[aria-label="项目颜色 #0ea5e9"]')
     expect((swatch.element as HTMLElement).style.backgroundColor).toBe('#0ea5e9')
+    expect(wrapper.get('a.primary-link').attributes('href')).toBe('/projects/7/board')
   })
 
   it('searches active users and wires add and remove member actions', async () => {
