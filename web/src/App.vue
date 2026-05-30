@@ -24,6 +24,7 @@
         <RouterLink to="/projects">项目</RouterLink>
         <RouterLink to="/my-tasks">我的任务</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/users">用户管理</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/settings/board-template">系统设置</RouterLink>
       </nav>
       <div class="account-block">
         <span class="account-name">{{ auth.user?.nickname ?? auth.user?.account }}</span>

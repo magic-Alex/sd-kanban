@@ -12,9 +12,11 @@ import {
   fetchTaskActivities,
   fetchTaskComments,
   updateTask,
+  updatePersonalTaskPosition,
   updateTaskPosition,
 } from '../src/api/tasks'
 import { fetchChecklistItems } from '../src/api/checklist'
+import { useBoardStore } from '../src/stores/board'
 import { useTasksStore } from '../src/stores/tasks'
 
 vi.mock('../src/api/board', () => ({
@@ -30,6 +32,7 @@ vi.mock('../src/api/tasks', () => ({
   fetchTaskActivities: vi.fn(),
   fetchTaskComments: vi.fn(),
   updateTask: vi.fn(),
+  updatePersonalTaskPosition: vi.fn(),
   updateTaskPosition: vi.fn(),
 }))
 
@@ -52,8 +55,12 @@ const user = {
 const taskCard = {
   id: 12,
   projectId: 7,
+  projectCode: 'DEL',
+  projectName: 'Delivery',
+  projectColor: '#0ea5e9',
   sprintId: null,
   columnId: 1,
+  columnTemplateKey: 'READY',
   assigneeId: null,
   assignee: null,
   title: 'Review my task',
@@ -106,12 +113,16 @@ describe('MyTaskBoardView', () => {
     vi.mocked(fetchTaskComments).mockReset()
     vi.mocked(fetchChecklistItems).mockReset()
     vi.mocked(updateTask).mockReset()
+    vi.mocked(updatePersonalTaskPosition).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
     vi.mocked(archiveTask).mockReset()
     vi.mocked(deleteTask).mockReset()
     vi.mocked(fetchMyTaskBoard).mockResolvedValue({
-      groupBy: 'project',
-      groups: [{ id: 7, name: 'Delivery', tasks: [taskCard] }],
+      groupBy: 'template',
+      groups: [
+        { templateKey: 'READY', name: 'Ready', color: '#0ea5e9', sortOrder: 0, isDone: false, tasks: [taskCard] },
+        { templateKey: 'DONE', name: 'Done', color: '#22c55e', sortOrder: 1, isDone: true, tasks: [] },
+      ],
     })
     vi.mocked(fetchProjectBoard).mockResolvedValue(projectBoard)
     vi.mocked(fetchProjectMembers).mockResolvedValue(members)
@@ -120,6 +131,7 @@ describe('MyTaskBoardView', () => {
     vi.mocked(fetchTaskComments).mockResolvedValue([])
     vi.mocked(fetchChecklistItems).mockResolvedValue([])
     vi.mocked(updateTask).mockResolvedValue(task)
+    vi.mocked(updatePersonalTaskPosition).mockResolvedValue(task)
     vi.mocked(updateTaskPosition).mockResolvedValue(undefined)
     vi.mocked(archiveTask).mockResolvedValue(task)
     vi.mocked(deleteTask).mockResolvedValue(undefined)
@@ -158,6 +170,29 @@ describe('MyTaskBoardView', () => {
     expect(updateTaskPosition).toHaveBeenCalledWith(12, { columnId: 2, sortOrder: 0 })
     expect(fetchTask).toHaveBeenCalledWith(12)
     expect(fetchMyTaskBoard).toHaveBeenCalledTimes(2)
+  })
+
+  it('moves a personal task to a template column on drop', async () => {
+    vi.mocked(fetchMyTaskBoard).mockResolvedValue({
+      groupBy: 'template',
+      groups: [
+        { templateKey: 'BACKLOG', name: 'Backlog', color: '#64748b', sortOrder: 0, isDone: false, tasks: [{ ...taskCard, id: 1, columnTemplateKey: 'BACKLOG' }] },
+        { templateKey: 'READY', name: 'Ready', color: '#0ea5e9', sortOrder: 1, isDone: false, tasks: [] },
+      ],
+    })
+    const wrapper = mount(MyTaskBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const board = useBoardStore()
+    const movePersonalTask = vi.spyOn(board, 'movePersonalTask').mockResolvedValue(undefined)
+    const dataTransfer = {
+      getData: vi.fn((type: string) => (type === 'application/sd-kanban-task' ? '1' : '')),
+    }
+
+    await wrapper.get('[data-template-key="READY"]').trigger('drop', { dataTransfer })
+
+    expect(movePersonalTask).toHaveBeenCalledWith(1, 'READY', 0)
   })
 
   it('resolves task saves even when my task board refresh fails afterward', async () => {

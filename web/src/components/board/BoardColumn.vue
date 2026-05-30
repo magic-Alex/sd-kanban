@@ -1,16 +1,28 @@
 <script setup lang="ts">
-import type { BoardColumn } from '../../api/board'
+import type { BoardColumn, MyTaskBoardGroup } from '../../api/board'
 import TaskCard from './TaskCard.vue'
 
 const props = defineProps<{
-  column: BoardColumn
+  column: BoardColumn | MyTaskBoardGroup
+  showCreateButton?: boolean
 }>()
 
 const emit = defineEmits<{
   openTask: [taskId: number]
-  moveTask: [taskId: number, columnId: number, sortOrder: number]
+  moveTask: [taskId: number, columnId: number | null, sortOrder: number, templateKey: string]
   createTask: [columnId: number]
 }>()
+
+function columnId() {
+  return 'id' in props.column ? props.column.id : null
+}
+
+function createTask() {
+  const id = columnId()
+  if (id !== null) {
+    emit('createTask', id)
+  }
+}
 
 function allowDrop(event: DragEvent) {
   event.preventDefault()
@@ -20,18 +32,29 @@ function dropTask(event: DragEvent) {
   event.preventDefault()
   const taskId = Number(event.dataTransfer?.getData('application/sd-kanban-task') || event.dataTransfer?.getData('text/plain'))
   if (Number.isFinite(taskId)) {
-    emit('moveTask', taskId, props.column.id, props.column.tasks.length)
+    emit('moveTask', taskId, columnId(), props.column.tasks.length, props.column.templateKey)
   }
 }
 </script>
 
 <template>
-  <section class="board-column" @dragover="allowDrop" @drop="dropTask">
+  <section
+    class="board-column"
+    :data-template-key="column.templateKey"
+    @dragover="allowDrop"
+    @drop="dropTask"
+  >
     <header class="board-column-header">
       <span class="column-swatch" :style="{ background: column.color }"></span>
       <h2>{{ column.name }}</h2>
       <small>{{ column.tasks.length }}</small>
-      <button class="column-add-button" type="button" :aria-label="`在 ${column.name} 新增任务`" @click="emit('createTask', column.id)">
+      <button
+        v-if="showCreateButton !== false && columnId() !== null"
+        class="column-add-button"
+        type="button"
+        :aria-label="`在 ${column.name} 新增任务`"
+        @click="createTask"
+      >
         +任务
       </button>
     </header>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import TaskCard from '../components/board/TaskCard.vue'
+import BoardColumn from '../components/board/BoardColumn.vue'
 import TaskDrawer from '../components/task/TaskDrawer.vue'
-import { fetchProjectBoard, type BoardColumn } from '../api/board'
+import { fetchProjectBoard, type BoardColumn as ProjectBoardColumn } from '../api/board'
 import { fetchProjectMembers, type ProjectMember } from '../api/projects'
 import { updateTaskPosition, type UpdateTaskRequest } from '../api/tasks'
 import { useBoardStore } from '../stores/board'
@@ -10,18 +10,17 @@ import { useTasksStore } from '../stores/tasks'
 
 const board = useBoardStore()
 const tasks = useTasksStore()
-const groupBy = ref('project')
 const drawerMembers = ref<ProjectMember[]>([])
-const drawerColumns = ref<BoardColumn[]>([])
+const drawerColumns = ref<ProjectBoardColumn[]>([])
 const completingTask = ref(false)
 let contextRequestId = 0
 
 onMounted(() => {
-  board.loadMyTaskBoard(groupBy.value)
+  board.loadMyTaskBoard()
 })
 
 async function reload() {
-  await board.loadMyTaskBoard(groupBy.value)
+  await board.loadMyTaskBoard()
 }
 
 async function loadDrawerContext(projectId: number) {
@@ -50,6 +49,10 @@ async function openTask(taskId: number) {
   if (tasks.activeTask) {
     await loadDrawerContext(tasks.activeTask.projectId)
   }
+}
+
+async function moveTask(taskId: number, _columnId: number | null, sortOrder: number, templateKey: string) {
+  await board.movePersonalTask(taskId, templateKey, sortOrder)
 }
 
 async function saveTask(update: UpdateTaskRequest) {
@@ -102,31 +105,20 @@ async function deleteTask() {
         <p class="eyebrow">My Tasks</p>
         <h1>我的任务</h1>
       </div>
-      <select v-model="groupBy" class="compact-select" @change="reload">
-        <option value="project">按项目</option>
-        <option value="column">按状态</option>
-      </select>
     </header>
 
     <p v-if="board.error" class="form-error">{{ board.error }}</p>
     <p v-else-if="board.loading" class="muted">正在加载任务...</p>
 
     <section class="board-lane" aria-label="个人任务看板">
-      <section v-for="group in board.myTaskBoard?.groups ?? []" :key="group.id" class="board-column">
-        <header class="board-column-header">
-          <span class="column-swatch"></span>
-          <h2>{{ group.name }}</h2>
-          <small>{{ group.tasks.length }}</small>
-        </header>
-        <div class="task-stack">
-          <TaskCard
-            v-for="task in group.tasks"
-            :key="task.id"
-            :task="task"
-            @open="openTask"
-          />
-        </div>
-      </section>
+      <BoardColumn
+        v-for="group in board.myTaskBoard?.groups ?? []"
+        :key="group.templateKey"
+        :column="group"
+        :show-create-button="false"
+        @open-task="openTask"
+        @move-task="moveTask"
+      />
     </section>
 
     <TaskDrawer

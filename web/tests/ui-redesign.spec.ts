@@ -48,6 +48,7 @@ function createTestRouter() {
       { path: '/projects', name: 'projects', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/my-tasks', name: 'my-tasks', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/admin/users', name: 'admin-users', component: { template: '<main />' }, meta: { requiresAuth: true, requiresAdmin: true } },
+      { path: '/admin/settings/board-template', name: 'admin-board-template-settings', component: { template: '<main />' }, meta: { requiresAuth: true, requiresAdmin: true } },
     ],
   })
 }
@@ -110,8 +111,12 @@ describe('precision workspace redesign', () => {
         task: {
           id: 12,
           projectId: 7,
+          projectCode: null,
+          projectName: null,
+          projectColor: null,
           sprintId: null,
           columnId: 1,
+          columnTemplateKey: 'READY',
           assigneeId: 3,
           assignee: {
             id: 3,

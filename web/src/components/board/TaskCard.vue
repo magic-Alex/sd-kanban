@@ -23,11 +23,23 @@ const isOverdue = computed(() => {
   }
   return props.task.dueDate < new Date().toISOString().slice(0, 10)
 })
+
+const projectBadgeStyle = computed(() => ({
+  '--project-color': props.task.projectColor ?? '#64748b',
+}))
 </script>
 
 <template>
   <article class="task-card" draggable="true" @dragstart="startDrag" @click="emit('open', task.id)">
     <div class="task-card-main">
+      <span
+        v-if="task.projectCode"
+        class="task-project-badge"
+        :style="projectBadgeStyle"
+        :title="task.projectName ? `${task.projectCode} · ${task.projectName}` : task.projectCode"
+      >
+        {{ task.projectCode }}
+      </span>
       <strong>{{ task.title }}</strong>
       <div class="task-card-badges">
         <span class="task-type">{{ task.taskType }}</span>

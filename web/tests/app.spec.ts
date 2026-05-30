@@ -59,6 +59,7 @@ function createTestRouter() {
       { path: '/projects/:projectId/board', name: 'project-board', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/my-tasks', name: 'my-tasks', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/admin/users', name: 'admin-users', component: { template: '<main />' }, meta: { requiresAuth: true, requiresAdmin: true } },
+      { path: '/admin/settings/board-template', name: 'admin-board-template-settings', component: { template: '<main />' }, meta: { requiresAuth: true, requiresAdmin: true } },
     ],
   })
   testRouter.beforeEach((to) => {
@@ -170,6 +171,73 @@ describe('app shell', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('用户管理')
+  })
+
+  it('shows system settings navigation for administrators only', async () => {
+    localStorage.setItem('sd-kanban-token', 'jwt-token')
+    localStorage.setItem(
+      'sd-kanban-user',
+      JSON.stringify({ id: 1, account: 'sd-robot', nickname: '系统管理员', role: 'ADMIN' }),
+    )
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      id: 1,
+      account: 'sd-robot',
+      nickname: '系统管理员',
+      email: null,
+      avatarUrl: null,
+      role: 'ADMIN',
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    authenticateTestUser('ADMIN')
+    const router = createTestRouter()
+    await router.push('/')
+
+    const adminWrapper = mount(App, {
+      global: {
+        plugins: [pinia, router],
+      },
+    })
+    await flushPromises()
+
+    expect(adminWrapper.text()).toContain('系统设置')
+    expect(adminWrapper.find('a[href="/admin/settings/board-template"]').exists()).toBe(true)
+
+    adminWrapper.unmount()
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      id: 1,
+      account: 'alex',
+      nickname: 'Alex',
+      email: 'alex@sd-robot.com',
+      avatarUrl: null,
+      role: 'MEMBER',
+    })
+    const memberPinia = createPinia()
+    setActivePinia(memberPinia)
+    authenticateTestUser('MEMBER')
+    const memberRouter = createTestRouter()
+    await memberRouter.push('/')
+
+    const memberWrapper = mount(App, {
+      global: {
+        plugins: [memberPinia, memberRouter],
+      },
+    })
+    await flushPromises()
+
+    expect(memberWrapper.text()).not.toContain('系统设置')
+  })
+
+  it('redirects non-admin users away from board template settings', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    authenticateTestUser('MEMBER')
+    const router = createTestRouter()
+
+    await router.push('/admin/settings/board-template')
+    await router.isReady()
+
+    expect(router.currentRoute.value.name).toBe('dashboard')
   })
 
   it('opens the notification panel from the authenticated shell', async () => {

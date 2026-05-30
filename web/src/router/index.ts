@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
+import BoardTemplateSettingsView from '../views/BoardTemplateSettingsView.vue'
 import LoginView from '../views/LoginView.vue'
 import MyTaskBoardView from '../views/MyTaskBoardView.vue'
 import ProjectBoardView from '../views/ProjectBoardView.vue'
@@ -51,6 +52,12 @@ const router = createRouter({
       path: '/admin/users',
       name: 'admin-users',
       component: UserAdminView,
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/admin/settings/board-template',
+      name: 'admin-board-template-settings',
+      component: BoardTemplateSettingsView,
       meta: { requiresAuth: true, requiresAdmin: true },
     },
   ],

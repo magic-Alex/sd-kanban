@@ -113,7 +113,10 @@ async function loadArchivedTasks(value: ArchivedTaskQuery = archivedFilters.valu
   }
 }
 
-function moveTask(taskId: number, columnId: number, sortOrder: number) {
+function moveTask(taskId: number, columnId: number | null, sortOrder: number) {
+  if (columnId === null) {
+    return
+  }
   board.moveTask(taskId, columnId, sortOrder)
 }
 
