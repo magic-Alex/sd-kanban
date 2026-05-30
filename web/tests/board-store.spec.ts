@@ -169,11 +169,12 @@ describe('board store', () => {
     expect(board.myTaskBoard?.groups[0].tasks[0].title).toBe('Build board')
   })
 
-  it('moves a personal task by template key with optimistic state', async () => {
+  it('moves a personal task by template key with optimistic state and reconciles the response position', async () => {
     vi.mocked(updatePersonalTaskPosition).mockResolvedValue({
       ...projectBoard.columns[0].tasks[0],
+      columnId: 2,
       columnTemplateKey: 'DONE',
-      sortOrder: 0,
+      sortOrder: 4,
       creator: { id: 1, account: 'alex', nickname: 'Alex', email: null, avatarUrl: null },
       description: null,
       estimatedHours: null,
@@ -211,7 +212,8 @@ describe('board store', () => {
     expect(board.myTaskBoard.groups[0].tasks).toHaveLength(0)
     expect(board.myTaskBoard.groups[1].tasks[0].id).toBe(12)
     expect(board.myTaskBoard.groups[1].tasks[0].columnTemplateKey).toBe('DONE')
-    expect(board.myTaskBoard.groups[1].tasks[0].sortOrder).toBe(0)
+    expect(board.myTaskBoard.groups[1].tasks[0].columnId).toBe(2)
+    expect(board.myTaskBoard.groups[1].tasks[0].sortOrder).toBe(4)
   })
 
   it('restores the previous personal board when a personal move fails', async () => {
@@ -244,6 +246,63 @@ describe('board store', () => {
     expect(board.myTaskBoard.groups[0].tasks[0].id).toBe(12)
     expect(board.myTaskBoard.groups[0].tasks[0].columnTemplateKey).toBe('READY')
     expect(board.myTaskBoard.groups[1].tasks).toHaveLength(0)
+  })
+
+  it('does not restore an old personal board when a stale move fails after refresh', async () => {
+    const moveRequest = deferred<Awaited<ReturnType<typeof updatePersonalTaskPosition>>>()
+    vi.mocked(updatePersonalTaskPosition).mockReturnValue(moveRequest.promise)
+    const refreshedBoard = {
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [{ ...projectBoard.columns[0].tasks[0], id: 44, title: 'Fresh task' }],
+        },
+      ],
+    }
+    vi.mocked(fetchMyTaskBoard).mockResolvedValue(refreshedBoard)
+    const board = useBoardStore()
+    board.myTaskBoard = {
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [structuredClone(projectBoard.columns[0].tasks[0])],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [],
+        },
+      ],
+    }
+
+    const moveTask = board.movePersonalTask(12, 'DONE', 0)
+    await board.loadMyTaskBoard()
+    moveRequest.reject(new Error('move failed'))
+    await expect(moveTask).rejects.toThrow('move failed')
+
+    expect(board.myTaskBoard?.groups[1].tasks[0].id).toBe(44)
+    expect(board.myTaskBoard?.groups[1].tasks[0].title).toBe('Fresh task')
   })
 
   it('moves a task by calling the position API', async () => {

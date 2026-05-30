@@ -7,7 +7,13 @@ import {
   type ProjectBoard,
   type TaskCard,
 } from '../api/board'
-import { createTask, updatePersonalTaskPosition, updateTaskPosition, type CreateTaskRequest } from '../api/tasks'
+import {
+  createTask,
+  updatePersonalTaskPosition,
+  updateTaskPosition,
+  type CreateTaskRequest,
+  type TaskResponse,
+} from '../api/tasks'
 
 function cloneBoard(board: ProjectBoard | null): ProjectBoard | null {
   return board ? JSON.parse(JSON.stringify(board)) : null
@@ -31,6 +37,7 @@ export const useBoardStore = defineStore('board', {
     lastFilters: {} as BoardQuery,
     lastProjectId: null as number | string | null,
     projectBoardRequestId: 0,
+    myTaskBoardRequestId: 0,
   }),
   actions: {
     async loadProjectBoard(projectId: number | string, filters: BoardQuery = {}) {
@@ -66,10 +73,15 @@ export const useBoardStore = defineStore('board', {
       this.lastProjectId = null
     },
     async loadMyTaskBoard(groupBy = 'template') {
+      const requestId = this.myTaskBoardRequestId + 1
+      this.myTaskBoardRequestId = requestId
       this.loading = true
       this.error = null
       try {
-        this.myTaskBoard = await fetchMyTaskBoard(groupBy)
+        const myTaskBoard = await fetchMyTaskBoard(groupBy)
+        if (this.myTaskBoardRequestId === requestId) {
+          this.myTaskBoard = myTaskBoard
+        }
       } catch (error) {
         this.error = '我的任务加载失败'
         throw error
@@ -101,6 +113,8 @@ export const useBoardStore = defineStore('board', {
       }
     },
     async movePersonalTask(taskId: number, targetTemplateKey: string, sortOrder: number) {
+      const requestId = this.myTaskBoardRequestId + 1
+      this.myTaskBoardRequestId = requestId
       const previous = cloneMyTaskBoard(this.myTaskBoard)
       const task = this.removePersonalTask(taskId)
       if (!task) {
@@ -113,18 +127,25 @@ export const useBoardStore = defineStore('board', {
         sortOrder,
       )
       if (!inserted) {
-        this.myTaskBoard = previous
+        if (this.myTaskBoardRequestId === requestId) {
+          this.myTaskBoard = previous
+        }
         return
       }
 
       this.movingTaskId = taskId
       try {
-        await updatePersonalTaskPosition(taskId, { targetTemplateKey, sortOrder })
+        const updatedTask = await updatePersonalTaskPosition(taskId, { targetTemplateKey, sortOrder })
+        if (this.myTaskBoardRequestId === requestId) {
+          this.reconcilePersonalTask(taskId, targetTemplateKey, updatedTask)
+        }
       } catch (error) {
-        this.myTaskBoard = previous
+        if (this.myTaskBoardRequestId === requestId) {
+          this.myTaskBoard = previous
+        }
         throw error
       } finally {
-        if (this.movingTaskId === taskId) {
+        if (this.myTaskBoardRequestId === requestId && this.movingTaskId === taskId) {
           this.movingTaskId = null
         }
       }
@@ -208,6 +229,16 @@ export const useBoardStore = defineStore('board', {
         candidate.columnTemplateKey = templateKey
       })
       return true
+    },
+    reconcilePersonalTask(taskId: number, templateKey: string, updatedTask: TaskResponse) {
+      const group = this.myTaskBoard?.groups.find((candidate) => candidate.templateKey === templateKey)
+      const task = group?.tasks.find((candidate) => candidate.id === taskId)
+      if (!task) {
+        return
+      }
+      task.columnId = updatedTask.columnId
+      task.sortOrder = updatedTask.sortOrder
+      task.columnTemplateKey = templateKey
     },
   },
 })

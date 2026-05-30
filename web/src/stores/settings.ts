@@ -6,7 +6,9 @@ import {
   reorderBoardTemplates,
   updateBoardTemplate,
   type BoardColumnTemplate,
+  type CreateBoardColumnTemplateRequest,
   type SaveBoardColumnTemplateRequest,
+  type UpdateBoardColumnTemplateRequest,
 } from '../api/settings'
 
 export const useSettingsStore = defineStore('settings', {
@@ -29,30 +31,54 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
     async saveBoardTemplate(request: SaveBoardColumnTemplateRequest) {
+      this.error = null
       const templateKey = request.templateKey?.trim()
       const existing = templateKey
         ? this.boardTemplates.find((template) => template.templateKey === templateKey)
         : undefined
 
-      let saved: BoardColumnTemplate
-      if (existing && templateKey) {
-        const { templateKey: _templateKey, ...updateRequest } = request
-        saved = await updateBoardTemplate(templateKey, updateRequest)
-        this.boardTemplates = this.boardTemplates.map((template) =>
-          template.templateKey === templateKey ? saved : template,
-        )
-      } else {
-        saved = await createBoardTemplate(request)
-        this.boardTemplates = [...this.boardTemplates, saved].sort((left, right) => left.sortOrder - right.sortOrder)
+      try {
+        let saved: BoardColumnTemplate
+        if (existing && templateKey) {
+          const { templateKey: _templateKey, ...updateRequest } = request
+          saved = await updateBoardTemplate(templateKey, updateRequest as UpdateBoardColumnTemplateRequest)
+          this.boardTemplates = this.boardTemplates.map((template) =>
+            template.templateKey === templateKey ? saved : template,
+          )
+        } else {
+          if (!templateKey) {
+            throw new Error('Template key is required')
+          }
+          const createRequest: CreateBoardColumnTemplateRequest = { ...request, templateKey }
+          saved = await createBoardTemplate(createRequest)
+          this.boardTemplates = [...this.boardTemplates, saved].sort((left, right) => left.sortOrder - right.sortOrder)
+        }
+        return saved
+      } catch (error) {
+        this.error = error instanceof Error && error.message === 'Template key is required'
+          ? error.message
+          : 'Board template save failed'
+        throw error
       }
-      return saved
     },
     async reorder(templateKeys: string[]) {
-      this.boardTemplates = await reorderBoardTemplates(templateKeys)
+      this.error = null
+      try {
+        this.boardTemplates = await reorderBoardTemplates(templateKeys)
+      } catch (error) {
+        this.error = 'Board templates reorder failed'
+        throw error
+      }
     },
     async remove(templateKey: string) {
-      await deleteBoardTemplate(templateKey)
-      this.boardTemplates = this.boardTemplates.filter((template) => template.templateKey !== templateKey)
+      this.error = null
+      try {
+        await deleteBoardTemplate(templateKey)
+        this.boardTemplates = this.boardTemplates.filter((template) => template.templateKey !== templateKey)
+      } catch (error) {
+        this.error = 'Board template delete failed'
+        throw error
+      }
     },
   },
 })

@@ -66,6 +66,7 @@ describe('settings store', () => {
 
   it('creates and updates board templates in local state', async () => {
     const settings = useSettingsStore()
+    settings.error = 'stale error'
     settings.boardTemplates = [readyTemplate]
     vi.mocked(createBoardTemplate).mockResolvedValue(doneTemplate)
     vi.mocked(updateBoardTemplate).mockResolvedValue({ ...readyTemplate, nameEn: 'Queued' })
@@ -101,10 +102,28 @@ describe('settings store', () => {
       isDone: false,
     })
     expect(settings.boardTemplates.map((template) => template.nameEn)).toEqual(['Queued', 'Done'])
+    expect(settings.error).toBeNull()
+  })
+
+  it('rejects a create save without a template key before calling the API', async () => {
+    const settings = useSettingsStore()
+    settings.boardTemplates = [readyTemplate]
+
+    await expect(settings.saveBoardTemplate({
+      nameZh: 'Review',
+      nameEn: 'Review',
+      color: '#8b5cf6',
+      isDone: false,
+    })).rejects.toThrow('Template key is required')
+
+    expect(createBoardTemplate).not.toHaveBeenCalled()
+    expect(updateBoardTemplate).not.toHaveBeenCalled()
+    expect(settings.error).toBe('Template key is required')
   })
 
   it('reorders and removes board templates', async () => {
     const settings = useSettingsStore()
+    settings.error = 'stale error'
     settings.boardTemplates = [readyTemplate, doneTemplate]
     vi.mocked(reorderBoardTemplates).mockResolvedValue([
       { ...doneTemplate, sortOrder: 0 },
@@ -118,5 +137,25 @@ describe('settings store', () => {
     expect(reorderBoardTemplates).toHaveBeenCalledWith([doneTemplate.templateKey, readyTemplate.templateKey])
     expect(deleteBoardTemplate).toHaveBeenCalledWith(doneTemplate.templateKey)
     expect(settings.boardTemplates.map((template) => template.id)).toEqual([readyTemplate.id])
+    expect(settings.error).toBeNull()
+  })
+
+  it('sets mutation errors without corrupting template state', async () => {
+    const settings = useSettingsStore()
+    settings.error = 'stale error'
+    settings.boardTemplates = [readyTemplate, doneTemplate]
+    vi.mocked(reorderBoardTemplates).mockRejectedValue(new Error('reorder failed'))
+    vi.mocked(deleteBoardTemplate).mockRejectedValue(new Error('delete failed'))
+
+    await expect(settings.reorder([doneTemplate.templateKey, readyTemplate.templateKey])).rejects.toThrow('reorder failed')
+
+    expect(settings.error).toBe('Board templates reorder failed')
+    expect(settings.boardTemplates.map((template) => template.templateKey)).toEqual(['READY', 'DONE'])
+
+    settings.error = 'stale error'
+    await expect(settings.remove(doneTemplate.templateKey)).rejects.toThrow('delete failed')
+
+    expect(settings.error).toBe('Board template delete failed')
+    expect(settings.boardTemplates.map((template) => template.templateKey)).toEqual(['READY', 'DONE'])
   })
 })

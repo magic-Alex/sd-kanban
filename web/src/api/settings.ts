@@ -12,8 +12,7 @@ export interface BoardColumnTemplate {
   isDone: boolean
 }
 
-export interface SaveBoardColumnTemplateRequest {
-  templateKey?: string
+interface BoardColumnTemplatePayload {
   nameZh: string
   nameEn: string
   color: string
@@ -21,14 +20,22 @@ export interface SaveBoardColumnTemplateRequest {
   isDone: boolean
 }
 
-type UpdateBoardColumnTemplateRequest = Omit<SaveBoardColumnTemplateRequest, 'templateKey'>
+export interface CreateBoardColumnTemplateRequest extends BoardColumnTemplatePayload {
+  templateKey: string
+}
+
+export interface UpdateBoardColumnTemplateRequest extends BoardColumnTemplatePayload {}
+
+export interface SaveBoardColumnTemplateRequest extends BoardColumnTemplatePayload {
+  templateKey?: string
+}
 
 export function fetchBoardTemplates(): Promise<BoardColumnTemplate[]> {
   return getData<BoardColumnTemplate[]>('/admin/board-templates')
 }
 
-export function createBoardTemplate(request: SaveBoardColumnTemplateRequest): Promise<BoardColumnTemplate> {
-  return postData<BoardColumnTemplate, SaveBoardColumnTemplateRequest>('/admin/board-templates', request)
+export function createBoardTemplate(request: CreateBoardColumnTemplateRequest): Promise<BoardColumnTemplate> {
+  return postData<BoardColumnTemplate, CreateBoardColumnTemplateRequest>('/admin/board-templates', request)
 }
 
 export function updateBoardTemplate(
