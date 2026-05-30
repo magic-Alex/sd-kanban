@@ -195,6 +195,33 @@ describe('MyTaskBoardView', () => {
     expect(movePersonalTask).toHaveBeenCalledWith(1, 'READY', 0)
   })
 
+  it('shows an error and rolls back when a personal task move fails', async () => {
+    vi.mocked(fetchMyTaskBoard).mockResolvedValue({
+      groupBy: 'template',
+      groups: [
+        { templateKey: 'BACKLOG', name: 'Backlog', color: '#64748b', sortOrder: 0, isDone: false, tasks: [{ ...taskCard, id: 1, columnTemplateKey: 'BACKLOG' }] },
+        { templateKey: 'READY', name: 'Ready', color: '#0ea5e9', sortOrder: 1, isDone: false, tasks: [] },
+      ],
+    })
+    vi.mocked(updatePersonalTaskPosition).mockRejectedValue(new Error('move failed'))
+    const wrapper = mount(MyTaskBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const dataTransfer = {
+      getData: vi.fn((type: string) => (type === 'application/sd-kanban-task' ? '1' : '')),
+    }
+
+    await wrapper.get('[data-template-key="READY"]').trigger('drop', { dataTransfer })
+    await flushPromises()
+
+    const board = useBoardStore()
+    expect(board.error).toBe('个人任务移动失败，请重试')
+    expect(wrapper.text()).toContain('个人任务移动失败，请重试')
+    expect(board.myTaskBoard?.groups.find((group) => group.templateKey === 'BACKLOG')?.tasks.map((candidate) => candidate.id)).toEqual([1])
+    expect(board.myTaskBoard?.groups.find((group) => group.templateKey === 'READY')?.tasks).toEqual([])
+  })
+
   it('resolves task saves even when my task board refresh fails afterward', async () => {
     vi.mocked(updateTask).mockResolvedValue({ ...task, title: 'Saved task' })
     const wrapper = mount(MyTaskBoardView, {

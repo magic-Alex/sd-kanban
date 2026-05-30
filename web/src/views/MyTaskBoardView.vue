@@ -52,7 +52,11 @@ async function openTask(taskId: number) {
 }
 
 async function moveTask(taskId: number, _columnId: number | null, sortOrder: number, templateKey: string) {
-  await board.movePersonalTask(taskId, templateKey, sortOrder)
+  try {
+    await board.movePersonalTask(taskId, templateKey, sortOrder)
+  } catch (error) {
+    board.error = '个人任务移动失败，请重试'
+  }
 }
 
 async function saveTask(update: UpdateTaskRequest) {

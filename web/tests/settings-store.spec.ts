@@ -78,8 +78,7 @@ describe('settings store', () => {
       color: '#22c55e',
       isDone: true,
     })
-    await settings.saveBoardTemplate({
-      templateKey: readyTemplate.templateKey,
+    await settings.saveBoardTemplate(readyTemplate.templateKey, {
       nameZh: '准备',
       nameEn: 'Queued',
       color: '#0ea5e9',
@@ -103,6 +102,32 @@ describe('settings store', () => {
     })
     expect(settings.boardTemplates.map((template) => template.nameEn)).toEqual(['Queued', 'Done'])
     expect(settings.error).toBeNull()
+  })
+
+  it('does not update an existing template when saving from create mode', async () => {
+    const settings = useSettingsStore()
+    settings.boardTemplates = [readyTemplate]
+    vi.mocked(createBoardTemplate).mockRejectedValue(new Error('duplicate key'))
+
+    await expect(settings.saveBoardTemplate(null, {
+      templateKey: readyTemplate.templateKey,
+      nameZh: 'Duplicate',
+      nameEn: 'Duplicate',
+      color: '#8b5cf6',
+      wipLimit: null,
+      isDone: false,
+    })).rejects.toThrow('duplicate key')
+
+    expect(createBoardTemplate).toHaveBeenCalledWith({
+      templateKey: readyTemplate.templateKey,
+      nameZh: 'Duplicate',
+      nameEn: 'Duplicate',
+      color: '#8b5cf6',
+      wipLimit: null,
+      isDone: false,
+    })
+    expect(updateBoardTemplate).not.toHaveBeenCalled()
+    expect(settings.boardTemplates).toEqual([readyTemplate])
   })
 
   it('rejects a create save without a template key before calling the API', async () => {

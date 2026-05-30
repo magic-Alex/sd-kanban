@@ -10,6 +10,16 @@ import {
   updateBoardTemplate,
 } from '../src/api/settings'
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (reason?: unknown) => void = () => undefined
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 vi.mock('../src/api/settings', () => ({
   createBoardTemplate: vi.fn(),
   deleteBoardTemplate: vi.fn(),
@@ -65,6 +75,7 @@ describe('BoardTemplateSettingsView', () => {
     vi.mocked(updateBoardTemplate).mockResolvedValue({ ...readyTemplate, nameZh: '待处理', displayName: '待处理' })
     vi.mocked(deleteBoardTemplate).mockResolvedValue(undefined)
     vi.mocked(reorderBoardTemplates).mockResolvedValue([doneTemplate, readyTemplate])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   it('loads templates and renders the list with the form', async () => {
@@ -121,10 +132,40 @@ describe('BoardTemplateSettingsView', () => {
       isDone: true,
     })
 
-    await wrapper.get('[aria-label="删除 DONE"]').trigger('click')
+    await wrapper.get('[aria-label="删除模板 DONE"]').trigger('click')
     await flushPromises()
 
     expect(deleteBoardTemplate).toHaveBeenCalledWith('DONE')
     expect(wrapper.text()).not.toContain('DONE')
+  })
+
+  it('does not delete a template when confirmation is cancelled', async () => {
+    vi.mocked(window.confirm).mockReturnValue(false)
+    const wrapper = mount(BoardTemplateSettingsView)
+    await flushPromises()
+
+    await wrapper.get('[aria-label="删除模板 DONE"]').trigger('click')
+    await flushPromises()
+
+    expect(window.confirm).toHaveBeenCalled()
+    expect(deleteBoardTemplate).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('DONE')
+  })
+
+  it('disables conflicting actions while reorder is pending', async () => {
+    const reorderRequest = deferred<typeof readyTemplate[]>()
+    vi.mocked(reorderBoardTemplates).mockReturnValue(reorderRequest.promise)
+    const wrapper = mount(BoardTemplateSettingsView)
+    await flushPromises()
+
+    await wrapper.get('[aria-label="下移 READY"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('[aria-label="编辑 READY"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect((wrapper.get('[aria-label="删除模板 DONE"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect((wrapper.get('form button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    reorderRequest.resolve([doneTemplate, readyTemplate])
+    await flushPromises()
   })
 })

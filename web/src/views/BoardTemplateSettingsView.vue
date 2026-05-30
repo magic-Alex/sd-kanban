@@ -22,6 +22,7 @@ const form = reactive({
 const sortedTemplates = computed(() =>
   [...settings.boardTemplates].sort((left, right) => left.sortOrder - right.sortOrder),
 )
+const reorderPending = computed(() => Boolean(reorderingKey.value))
 
 onMounted(async () => {
   try {
@@ -43,6 +44,9 @@ function resetForm() {
 }
 
 function editTemplate(template: BoardColumnTemplate) {
+  if (reorderPending.value) {
+    return
+  }
   editingKey.value = template.templateKey
   form.templateKey = template.templateKey
   form.nameZh = template.nameZh
@@ -66,7 +70,7 @@ function templatePayload(): SaveBoardColumnTemplateRequest {
 }
 
 async function saveTemplate() {
-  if (saving.value) {
+  if (saving.value || reorderPending.value) {
     return
   }
   formError.value = null
@@ -92,7 +96,10 @@ async function saveTemplate() {
 }
 
 async function removeTemplate(templateKey: string) {
-  if (deletingKey.value) {
+  if (deletingKey.value || reorderPending.value) {
+    return
+  }
+  if (!window.confirm(`确认删除模板 ${templateKey}？`)) {
     return
   }
   deletingKey.value = templateKey
@@ -109,7 +116,7 @@ async function removeTemplate(templateKey: string) {
 }
 
 async function moveTemplate(templateKey: string, direction: -1 | 1) {
-  if (reorderingKey.value) {
+  if (reorderPending.value) {
     return
   }
   const templates = sortedTemplates.value
@@ -190,6 +197,7 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
               <button
                 class="secondary-button"
                 type="button"
+                :disabled="reorderPending"
                 :aria-label="`编辑 ${template.templateKey}`"
                 @click="editTemplate(template)"
               >
@@ -198,11 +206,11 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
               <button
                 class="danger-button"
                 type="button"
-                :disabled="deletingKey === template.templateKey"
-                :aria-label="`删除 ${template.templateKey}`"
+                :disabled="deletingKey === template.templateKey || reorderPending"
+                :aria-label="`删除模板 ${template.templateKey}`"
                 @click="removeTemplate(template.templateKey)"
               >
-                删除
+                删除模板
               </button>
             </span>
           </article>
@@ -215,7 +223,7 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
             <h2>{{ editingKey ? '编辑模板' : '新建模板' }}</h2>
             <small>模板编码创建后不可修改</small>
           </div>
-          <button v-if="editingKey" class="secondary-button" type="button" @click="resetForm">取消编辑</button>
+          <button v-if="editingKey" class="secondary-button" type="button" :disabled="reorderPending" @click="resetForm">取消编辑</button>
         </div>
 
         <form class="template-form" @submit.prevent="saveTemplate">
@@ -224,29 +232,29 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
             <input
               v-model.trim="form.templateKey"
               data-testid="template-key-input"
-              :disabled="Boolean(editingKey) || saving"
+              :disabled="Boolean(editingKey) || saving || reorderPending"
               placeholder="READY"
               autocomplete="off"
             />
           </label>
           <label>
             中文名
-            <input v-model.trim="form.nameZh" data-testid="name-zh-input" :disabled="saving" placeholder="准备" />
+            <input v-model.trim="form.nameZh" data-testid="name-zh-input" :disabled="saving || reorderPending" placeholder="准备" />
           </label>
           <label>
             英文名
-            <input v-model.trim="form.nameEn" data-testid="name-en-input" :disabled="saving" placeholder="Ready" />
+            <input v-model.trim="form.nameEn" data-testid="name-en-input" :disabled="saving || reorderPending" placeholder="Ready" />
           </label>
           <label>
             颜色
-            <input v-model="form.color" data-testid="color-input" :disabled="saving" type="color" />
+            <input v-model="form.color" data-testid="color-input" :disabled="saving || reorderPending" type="color" />
           </label>
           <label>
             WIP 限制
             <input
               v-model.trim="form.wipLimit"
               data-testid="wip-limit-input"
-              :disabled="saving"
+              :disabled="saving || reorderPending"
               type="number"
               min="0"
               step="1"
@@ -254,14 +262,14 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
             />
           </label>
           <label class="inline-check">
-            <input v-model="form.isDone" data-testid="is-done-input" :disabled="saving" type="checkbox" />
+            <input v-model="form.isDone" data-testid="is-done-input" :disabled="saving || reorderPending" type="checkbox" />
             完成列
           </label>
 
           <p v-if="formError" class="form-error full-field">{{ formError }}</p>
           <div class="modal-actions full-field">
-            <button class="secondary-button" type="button" :disabled="saving" @click="resetForm">重置</button>
-            <button class="primary-button" type="submit" :disabled="saving">
+            <button class="secondary-button" type="button" :disabled="saving || reorderPending" @click="resetForm">重置</button>
+            <button class="primary-button" type="submit" :disabled="saving || reorderPending">
               {{ saving ? '保存中...' : '保存模板' }}
             </button>
           </div>

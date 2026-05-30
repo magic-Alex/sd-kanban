@@ -17,6 +17,10 @@ function startDrag(event: DragEvent) {
   emit('dragStart', props.task.id)
 }
 
+function openTask() {
+  emit('open', props.task.id)
+}
+
 const isOverdue = computed(() => {
   if (!props.task.dueDate) {
     return false
@@ -30,13 +34,23 @@ const projectBadgeStyle = computed(() => ({
 </script>
 
 <template>
-  <article class="task-card" draggable="true" @dragstart="startDrag" @click="emit('open', task.id)">
+  <article
+    class="task-card"
+    draggable="true"
+    role="button"
+    tabindex="0"
+    @dragstart="startDrag"
+    @click="openTask"
+    @keydown.enter.prevent="openTask"
+    @keydown.space.prevent="openTask"
+  >
     <div class="task-card-main">
       <span
         v-if="task.projectCode"
         class="task-project-badge"
         :style="projectBadgeStyle"
         :title="task.projectName ? `${task.projectCode} · ${task.projectName}` : task.projectCode"
+        :aria-label="task.projectName ? `项目 ${task.projectCode} ${task.projectName}` : `项目 ${task.projectCode}`"
       >
         {{ task.projectCode }}
       </span>

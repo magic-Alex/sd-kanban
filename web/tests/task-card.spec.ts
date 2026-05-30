@@ -64,6 +64,7 @@ describe('TaskCard', () => {
     const badge = wrapper.get('.task-project-badge')
     expect(badge.text()).toBe('OPS')
     expect(badge.attributes('title')).toContain('Operations')
+    expect(badge.attributes('aria-label')).toBe('项目 OPS Operations')
     expect(badge.attributes('style')).toContain('--project-color: #f97316')
     expect(wrapper.get('article.task-card').attributes('style')).toBeUndefined()
 
@@ -75,5 +76,23 @@ describe('TaskCard', () => {
     }
     await wrapper.get('article.task-card').trigger('dragstart', { dataTransfer })
     expect(dataTransfer.setData).toHaveBeenCalledWith('application/sd-kanban-task', '12')
+  })
+
+  it('opens from keyboard activation without breaking pointer open', async () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: taskCard(),
+      },
+    })
+    const card = wrapper.get('article.task-card')
+
+    expect(card.attributes('role')).toBe('button')
+    expect(card.attributes('tabindex')).toBe('0')
+
+    await card.trigger('keydown', { key: 'Enter' })
+    await card.trigger('keydown', { key: ' ' })
+    await card.trigger('click')
+
+    expect(wrapper.emitted('open')).toEqual([[12], [12], [12]])
   })
 })

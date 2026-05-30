@@ -34,19 +34,14 @@ export const useSettingsStore = defineStore('settings', {
       editingKeyOrRequest: string | null | SaveBoardColumnTemplateRequest,
       maybeRequest?: SaveBoardColumnTemplateRequest,
     ) {
-      const editingKey = typeof editingKeyOrRequest === 'string' ? editingKeyOrRequest : null
+      const editingKey = typeof editingKeyOrRequest === 'string' ? editingKeyOrRequest.trim() : null
       const request = maybeRequest ?? (editingKeyOrRequest as SaveBoardColumnTemplateRequest)
       this.error = null
       const templateKey = (editingKey ?? request.templateKey)?.trim()
-      const existing = editingKey
-        ? this.boardTemplates.find((template) => template.templateKey === editingKey)
-        : templateKey
-          ? this.boardTemplates.find((template) => template.templateKey === templateKey)
-          : undefined
 
       try {
         let saved: BoardColumnTemplate
-        if (existing && templateKey) {
+        if (editingKey && templateKey) {
           const { templateKey: _templateKey, ...updateRequest } = request
           saved = await updateBoardTemplate(templateKey, updateRequest as UpdateBoardColumnTemplateRequest)
           this.boardTemplates = this.boardTemplates.map((template) =>
