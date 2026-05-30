@@ -164,6 +164,7 @@ describe('BoardTemplateSettingsView', () => {
     expect((wrapper.get('[aria-label="编辑 READY"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((wrapper.get('[aria-label="删除模板 DONE"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((wrapper.get('form button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(wrapper.findAll('button').find((button) => button.text().includes('刷新'))?.element.disabled).toBe(true)
 
     reorderRequest.resolve([doneTemplate, readyTemplate])
     await flushPromises()

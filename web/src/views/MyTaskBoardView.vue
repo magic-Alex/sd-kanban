@@ -54,6 +54,7 @@ async function openTask(taskId: number) {
 async function moveTask(taskId: number, _columnId: number | null, sortOrder: number, templateKey: string) {
   try {
     await board.movePersonalTask(taskId, templateKey, sortOrder)
+    board.error = null
   } catch (error) {
     board.error = '个人任务移动失败，请重试'
   }

@@ -222,6 +222,33 @@ describe('MyTaskBoardView', () => {
     expect(board.myTaskBoard?.groups.find((group) => group.templateKey === 'READY')?.tasks).toEqual([])
   })
 
+  it('clears a stale move error after a later successful personal drop', async () => {
+    vi.mocked(fetchMyTaskBoard).mockResolvedValue({
+      groupBy: 'template',
+      groups: [
+        { templateKey: 'BACKLOG', name: 'Backlog', color: '#64748b', sortOrder: 0, isDone: false, tasks: [{ ...taskCard, id: 1, columnTemplateKey: 'BACKLOG' }] },
+        { templateKey: 'READY', name: 'Ready', color: '#0ea5e9', sortOrder: 1, isDone: false, tasks: [] },
+      ],
+    })
+    vi.mocked(updatePersonalTaskPosition).mockResolvedValue({ ...task, id: 1, columnTemplateKey: 'READY', sortOrder: 0 })
+    const wrapper = mount(MyTaskBoardView, {
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const board = useBoardStore()
+    board.error = 'stale move error'
+    const dataTransfer = {
+      getData: vi.fn((type: string) => (type === 'application/sd-kanban-task' ? '1' : '')),
+    }
+
+    await wrapper.get('[data-template-key="READY"]').trigger('drop', { dataTransfer })
+    await flushPromises()
+
+    expect(board.error).toBeNull()
+    expect(wrapper.text()).not.toContain('stale move error')
+    expect(board.myTaskBoard?.groups.find((group) => group.templateKey === 'READY')?.tasks.map((candidate) => candidate.id)).toEqual([1])
+  })
+
   it('resolves task saves even when my task board refresh fails afterward', async () => {
     vi.mocked(updateTask).mockResolvedValue({ ...task, title: 'Saved task' })
     const wrapper = mount(MyTaskBoardView, {

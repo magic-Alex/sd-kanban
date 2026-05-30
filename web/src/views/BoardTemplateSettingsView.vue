@@ -23,6 +23,7 @@ const sortedTemplates = computed(() =>
   [...settings.boardTemplates].sort((left, right) => left.sortOrder - right.sortOrder),
 )
 const reorderPending = computed(() => Boolean(reorderingKey.value))
+const templateMutationPending = computed(() => saving.value || Boolean(deletingKey.value) || reorderPending.value)
 
 onMounted(async () => {
   try {
@@ -31,6 +32,13 @@ onMounted(async () => {
     // Store exposes the user-facing error.
   }
 })
+
+async function refreshTemplates() {
+  if (templateMutationPending.value) {
+    return
+  }
+  await settings.loadBoardTemplates()
+}
 
 function resetForm() {
   editingKey.value = null
@@ -146,7 +154,7 @@ async function moveTemplate(templateKey: string, direction: -1 | 1) {
         <p class="eyebrow">Settings</p>
         <h1>系统设置</h1>
       </div>
-      <button class="secondary-button" type="button" :disabled="settings.loading" @click="settings.loadBoardTemplates()">
+      <button class="secondary-button" type="button" :disabled="settings.loading || templateMutationPending" @click="refreshTemplates">
         刷新
       </button>
     </header>
