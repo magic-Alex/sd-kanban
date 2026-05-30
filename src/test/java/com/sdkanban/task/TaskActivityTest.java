@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -108,6 +109,30 @@ class TaskActivityTest {
             Integer.class,
             taskId
         )).isEqualTo(1);
+    }
+
+    @Test
+    void sortOrderActivityUsesDisplayLabel() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), firstColumnId(fixture.projectId()), "Moved task");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "columnId": %d,
+                      "sortOrder": 3
+                    }
+                    """.formatted(firstColumnId(fixture.projectId()))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/tasks/{taskId}/activities", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].fieldName").value("sortOrder"))
+            .andExpect(jsonPath("$.data[0].displayText").value(org.hamcrest.Matchers.containsString("\u6392\u5e8f")))
+            .andExpect(jsonPath("$.data[0].displayText").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("sortOrder"))));
     }
 
     private Fixture fixtureWithOwnerAndMember() throws Exception {

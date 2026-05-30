@@ -591,6 +591,7 @@ public class TaskServiceImpl implements TaskService {
             case "storyPoints" -> "故事点";
             case "estimatedHours" -> "预计工时";
             case "acceptanceCriteria" -> "验收标准";
+            case "sortOrder" -> "\u6392\u5e8f";
             default -> String.valueOf(fieldName);
         };
     }

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -329,10 +331,122 @@ class MyTaskBoardApiTest {
         )).isEqualTo(backlogColumnId + ":0");
     }
 
+    @Test
+    void personalMoveOnlyResolvesTargetTemplateInsideTaskProject() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        Fixture other = fixtureWithOwnerAndMember("other-owner", "other-member", "Other Delivery");
+        long backlogColumnId = columnIds(fixture.projectId()).get(0);
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), backlogColumnId, fixture.member().id(), "Project scoped move");
+        assertThat(templateColumnId(other.projectId(), "READY")).isPositive();
+        jdbcTemplate.update("DELETE FROM board_columns WHERE project_id = ? AND template_key = 'READY'", fixture.projectId());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": 9
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TARGET_TEMPLATE_COLUMN_MISSING"));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT CONCAT(project_id, ':', column_id, ':', sort_order) FROM tasks WHERE id = ?",
+            String.class,
+            taskId
+        )).isEqualTo(fixture.projectId() + ":" + backlogColumnId + ":0");
+    }
+
+    @Test
+    void personalMoveRejectsNullSortOrder() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Null sort"
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": null
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.fieldErrors.sortOrder").exists());
+    }
+
+    @Test
+    void personalMoveRejectsNegativeSortOrder() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Negative sort"
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": -1
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.fieldErrors.sortOrder").exists());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "ready", "READY-NO"})
+    void personalMoveRejectsInvalidTargetTemplateKey(String targetTemplateKey) throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        long taskId = createTask(
+            fixture.member().token(),
+            fixture.projectId(),
+            columnIds(fixture.projectId()).get(0),
+            fixture.member().id(),
+            "Invalid target"
+        );
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "%s",
+                      "sortOrder": 1
+                    }
+                    """.formatted(targetTemplateKey)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.fieldErrors.targetTemplateKey").exists());
+    }
+
     private Fixture fixtureWithOwnerAndMember() throws Exception {
-        RegisteredUser owner = register("owner", "Owner");
-        RegisteredUser member = register("member", "Member");
-        CreatedProject project = createProject(owner.token(), "Delivery", "Delivery board");
+        return fixtureWithOwnerAndMember("owner", "member", "Delivery");
+    }
+
+    private Fixture fixtureWithOwnerAndMember(String ownerAccount, String memberAccount, String projectName) throws Exception {
+        RegisteredUser owner = register(ownerAccount, "Owner");
+        RegisteredUser member = register(memberAccount, "Member");
+        CreatedProject project = createProject(owner.token(), projectName, projectName + " board");
         addMember(owner.token(), project.id(), member.id());
         return new Fixture(owner, member, project.id(), project.projectCode(), project.projectColor());
     }
@@ -376,6 +490,15 @@ class MyTaskBoardApiTest {
             "SELECT id FROM board_columns WHERE project_id = ? ORDER BY sort_order",
             (rs, rowNum) -> rs.getLong("id"),
             projectId
+        );
+    }
+
+    private long templateColumnId(long projectId, String templateKey) {
+        return jdbcTemplate.queryForObject(
+            "SELECT id FROM board_columns WHERE project_id = ? AND template_key = ?",
+            Long.class,
+            projectId,
+            templateKey
         );
     }
 
