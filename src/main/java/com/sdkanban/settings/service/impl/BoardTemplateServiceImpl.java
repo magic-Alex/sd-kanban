@@ -19,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,8 +66,9 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
             throw templateKeyExists();
         }
 
+        BoardColumnTemplate template;
         try {
-            BoardColumnTemplate template = boardColumnTemplateRepository.saveAndFlush(new BoardColumnTemplate(
+            template = boardColumnTemplateRepository.saveAndFlush(new BoardColumnTemplate(
                 templateKey,
                 request.nameZh().trim(),
                 request.nameEn().trim(),
@@ -75,11 +77,12 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
                 request.wipLimit(),
                 Boolean.TRUE.equals(request.isDone())
             ));
-            backfillProjectColumns(template);
-            return BoardColumnTemplateResponse.from(template);
         } catch (DataIntegrityViolationException exception) {
             throw templateKeyExists();
         }
+        makeRoomForBackfilledProjectColumns(template);
+        backfillProjectColumns(template);
+        return BoardColumnTemplateResponse.from(template);
     }
 
     @Override
@@ -235,6 +238,29 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
             ))
             .toList();
         boardColumnRepository.saveAll(columns);
+    }
+
+    private void makeRoomForBackfilledProjectColumns(BoardColumnTemplate template) {
+        List<ColumnShift> shifts = new ArrayList<>();
+        int stagedIndex = 0;
+        for (var project : projectRepository.findAll()) {
+            if (boardColumnRepository.findByProjectIdAndTemplateKey(project.getId(), template.getTemplateKey()).isPresent()) {
+                continue;
+            }
+            for (BoardColumn column : boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(project.getId())) {
+                if (column.getSortOrder() >= template.getSortOrder()) {
+                    shifts.add(new ColumnShift(column, column.getSortOrder() + 1));
+                    column.changeSortOrder(-(200_000 + stagedIndex));
+                    stagedIndex++;
+                }
+            }
+        }
+        boardColumnRepository.flush();
+        shifts.forEach(shift -> shift.column().changeSortOrder(shift.finalSortOrder()));
+        boardColumnRepository.flush();
+    }
+
+    private record ColumnShift(BoardColumn column, Integer finalSortOrder) {
     }
 
     private BusinessException templateKeyExists() {

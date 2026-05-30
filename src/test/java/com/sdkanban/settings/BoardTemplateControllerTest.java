@@ -371,6 +371,50 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void creatingTemplateShiftsLegacyProjectColumnsAtTemplateSortOrder() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_columns (project_id, template_key, name, color, sort_order, is_done)
+            VALUES (?, 'CUSTOM_42', 'Legacy Custom', '#64748b', 5, false)
+            """,
+            projectId
+        );
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKey": "REVIEW",
+                      "nameZh": "评审",
+                      "nameEn": "Review",
+                      "color": "#111827",
+                      "wipLimit": 2,
+                      "isDone": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.templateKey").value("REVIEW"));
+
+        Integer reviewSortOrder = jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM board_columns WHERE project_id = ? AND template_key = 'REVIEW'",
+            Integer.class,
+            projectId
+        );
+        Integer customSortOrder = jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM board_columns WHERE project_id = ? AND template_key = 'CUSTOM_42'",
+            Integer.class,
+            projectId
+        );
+
+        assertThat(reviewSortOrder).isEqualTo(5);
+        assertThat(customSortOrder).isGreaterThan(5);
+    }
+
+    @Test
     void adminReordersTemplatesAndProjectColumnsWithoutSortConstraintFailure() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
         RegisteredUser owner = register("owner", "Owner");
