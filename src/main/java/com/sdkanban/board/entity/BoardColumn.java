@@ -21,6 +21,9 @@ public class BoardColumn {
     @Column(name = "project_id", nullable = false)
     private Long projectId;
 
+    @Column(name = "template_key", nullable = false, length = 60)
+    private String templateKey;
+
     @Column(nullable = false, length = 80)
     private String name;
 
@@ -49,6 +52,7 @@ public class BoardColumn {
 
     public BoardColumn(
         Long projectId,
+        String templateKey,
         String name,
         String color,
         Integer sortOrder,
@@ -56,11 +60,23 @@ public class BoardColumn {
         boolean done
     ) {
         this.projectId = projectId;
+        this.templateKey = templateKey;
         this.name = name;
         this.color = color;
         this.sortOrder = sortOrder;
         this.wipLimit = wipLimit;
         this.done = done;
+    }
+
+    public BoardColumn(
+        Long projectId,
+        String name,
+        String color,
+        Integer sortOrder,
+        Integer wipLimit,
+        boolean done
+    ) {
+        this(projectId, defaultTemplateKey(name, sortOrder), name, color, sortOrder, wipLimit, done);
     }
 
     public Long getId() {
@@ -69,6 +85,10 @@ public class BoardColumn {
 
     public Long getProjectId() {
         return projectId;
+    }
+
+    public String getTemplateKey() {
+        return templateKey;
     }
 
     public String getName() {
@@ -108,5 +128,32 @@ public class BoardColumn {
 
     public void changeSortOrder(Integer sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public void syncFromTemplate(String name, String color, Integer sortOrder, Integer wipLimit, boolean done) {
+        this.name = name;
+        this.color = color;
+        this.sortOrder = sortOrder;
+        this.wipLimit = wipLimit;
+        this.done = done;
+    }
+
+    private static String defaultTemplateKey(String name, Integer sortOrder) {
+        if (Integer.valueOf(0).equals(sortOrder) || "Backlog".equals(name)) {
+            return "BACKLOG";
+        }
+        if (Integer.valueOf(1).equals(sortOrder) || "Ready".equals(name)) {
+            return "READY";
+        }
+        if (Integer.valueOf(2).equals(sortOrder) || "In Progress".equals(name)) {
+            return "IN_PROGRESS";
+        }
+        if (Integer.valueOf(3).equals(sortOrder) || "Testing".equals(name)) {
+            return "TESTING";
+        }
+        if (Integer.valueOf(4).equals(sortOrder) || "Done".equals(name)) {
+            return "DONE";
+        }
+        return "CUSTOM_" + System.nanoTime();
     }
 }

@@ -106,6 +106,38 @@ class SchemaMigrationTest {
     }
 
     @Test
+    void projectAndBoardTemplateColumnsExist() {
+        assertColumns("projects", "project_code", "project_color");
+        assertColumns("board_columns", "template_key");
+        assertColumns(
+            "board_column_templates",
+            "template_key",
+            "name_zh",
+            "name_en",
+            "color",
+            "sort_order",
+            "wip_limit",
+            "is_done"
+        );
+    }
+
+    @Test
+    void defaultBoardTemplatesAreSeeded() {
+        List<String> labels = jdbcTemplate.query(
+            "SELECT CONCAT(name_zh, '（', name_en, '）') FROM board_column_templates ORDER BY sort_order",
+            (rs, rowNum) -> rs.getString(1)
+        );
+
+        assertThat(labels).containsExactly(
+            "待办（Backlog）",
+            "就绪（Ready）",
+            "进行中（In Progress）",
+            "测试（Testing）",
+            "完成（Done）"
+        );
+    }
+
+    @Test
     void canonicalColumnsDoNotKeepLegacyRequiredBlockers() {
         assertNoColumns("users", "username", "display_name");
         assertNoColumns("task_activities", "activity_type");
@@ -151,8 +183,8 @@ class SchemaMigrationTest {
     void projectScopedReferencesRejectCrossProjectColumnsAndTags() {
         seedCanonicalProject(1001, 2001, "owner1", "Project 1");
         seedCanonicalProject(1002, 2002, "owner2", "Project 2");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3001, 2001, 'Todo', '#4f46e5', 1, false)");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3002, 2002, 'Todo', '#0891b2', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3001, 2001, 'TODO', 'Todo', '#4f46e5', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3002, 2002, 'TODO', 'Todo', '#0891b2', 1, false)");
         jdbcTemplate.update("INSERT INTO task_tags (id, project_id, name, color) VALUES (4001, 2001, 'Backend', '#16a34a')");
         jdbcTemplate.update("INSERT INTO task_tags (id, project_id, name, color) VALUES (4002, 2002, 'Backend', '#dc2626')");
         jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5001, 2001, 3001, 1001, 'Scoped task')");
@@ -170,7 +202,7 @@ class SchemaMigrationTest {
     @Transactional
     void canonicalUserAndActivityInsertsDoNotNeedLegacyColumns() {
         seedCanonicalProject(1101, 2101, "canonical-owner", "Canonical Project");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3101, 2101, 'Todo', '#2563eb', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3101, 2101, 'TODO', 'Todo', '#2563eb', 1, false)");
         jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5101, 2101, 3101, 1101, 'Canonical task')");
 
         int inserted = jdbcTemplate.update(
@@ -196,8 +228,8 @@ class SchemaMigrationTest {
     void taskCollaborationReferencesRejectCrossProjectAndOrphanTaskLinks() {
         seedCanonicalProject(1301, 2301, "collab-owner-1", "Collaboration Project 1");
         seedCanonicalProject(1302, 2302, "collab-owner-2", "Collaboration Project 2");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3301, 2301, 'Todo', '#0f766e', 1, false)");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3302, 2302, 'Todo', '#9333ea', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3301, 2301, 'TODO', 'Todo', '#0f766e', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3302, 2302, 'TODO', 'Todo', '#9333ea', 1, false)");
         jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5301, 2301, 3301, 1301, 'Collaboration task 1')");
         jdbcTemplate.update("INSERT INTO tasks (id, project_id, column_id, creator_id, title) VALUES (5302, 2302, 3302, 1302, 'Collaboration task 2')");
 
@@ -240,7 +272,7 @@ class SchemaMigrationTest {
     void sprintScopeRejectsCrossProjectAssignmentAndRestrictsReferencedSprintDeletion() {
         seedCanonicalProject(1201, 2201, "sprint-owner-1", "Sprint Project 1");
         seedCanonicalProject(1202, 2202, "sprint-owner-2", "Sprint Project 2");
-        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, name, color, sort_order, is_done) VALUES (3201, 2201, 'Todo', '#7c3aed', 1, false)");
+        jdbcTemplate.update("INSERT INTO board_columns (id, project_id, template_key, name, color, sort_order, is_done) VALUES (3201, 2201, 'TODO', 'Todo', '#7c3aed', 1, false)");
         jdbcTemplate.update("INSERT INTO sprints (id, project_id, name, status) VALUES (6201, 2201, 'Sprint 1', 'PLANNED')");
         jdbcTemplate.update("INSERT INTO sprints (id, project_id, name, status) VALUES (6202, 2202, 'Sprint 2', 'PLANNED')");
         jdbcTemplate.update("INSERT INTO tasks (id, project_id, sprint_id, column_id, creator_id, title) VALUES (5201, 2201, 6201, 3201, 1201, 'Sprint task')");
@@ -297,10 +329,11 @@ class SchemaMigrationTest {
             "ACTIVE"
         );
         jdbcTemplate.update(
-            "INSERT INTO projects (id, owner_id, creator_id, name, status) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO projects (id, owner_id, creator_id, project_code, name, status) VALUES (?, ?, ?, ?, ?, ?)",
             projectId,
             userId,
             userId,
+            "PRJ-" + projectId,
             projectName,
             "ACTIVE"
         );
