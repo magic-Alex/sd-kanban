@@ -1,6 +1,16 @@
 # SD Kanban
 
-SD Kanban is a Spring Boot 3 + Vue 3 agile kanban application for project owners and small delivery teams. It includes JWT login, projects, project owners, members, sprints, custom board columns, tasks, project and personal boards, dashboard statistics, and MySQL persistence.
+SD Kanban is a Spring Boot 3 + Vue 3 agile kanban application for project owners and small delivery teams. It includes JWT login, projects, project owners, members, sprints, a global board template, tasks, project and personal boards, dashboard statistics, and MySQL persistence.
+
+## Core Workflow
+
+- Default ports: backend `8101`, frontend `8102`.
+- Default admin account: `sd-robot` / `1`.
+- Public self-registration is disabled; administrators create users from the user management page.
+- Projects require a unique project code and a project color. The code appears on task cards, and the color helps distinguish tasks from different projects in the personal board.
+- All projects use the same global board-column template managed from System Settings. The default statuses are `待办（Backlog）`, `就绪（Ready）`, `进行中（In Progress）`, `测试（Testing）`, and `完成（Done）`.
+- The personal task board shows only tasks assigned to the current user. Cards can be dragged between global template statuses while keeping their original project binding.
+- Project owners add project members from the project detail page. Tasks can only be assigned to users who are already members of that project.
 
 ## Backend
 
