@@ -111,6 +111,54 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void ordinaryMemberGetsForbiddenBeforeInvalidTemplateBodiesAreValidated() throws Exception {
+        RegisteredUser member = register("member", "Member");
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKey": "bad key",
+                      "nameZh": "",
+                      "nameEn": "",
+                      "color": "blue",
+                      "wipLimit": 0
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(patch("/api/admin/board-templates/{templateKey}", "DONE")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "nameZh": "",
+                      "nameEn": "",
+                      "color": "blue",
+                      "wipLimit": -1
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(patch("/api/admin/board-templates/reorder")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKeys": []
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void deletingTemplateWithMatchingTasksIsBlocked() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
         RegisteredUser owner = register("owner", "Owner");
@@ -216,6 +264,44 @@ class BoardTemplateControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].templateKey").value("REVIEW"));
+    }
+
+    @Test
+    void adminCreateAndUpdateRejectNonPositiveWipLimits() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKey": "REVIEW",
+                      "nameZh": "评审",
+                      "nameEn": "Review",
+                      "color": "#111827",
+                      "wipLimit": 0,
+                      "isDone": false
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        mockMvc.perform(patch("/api/admin/board-templates/{templateKey}", "DONE")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "nameZh": "已完成",
+                      "nameEn": "Done",
+                      "color": "#16a34a",
+                      "wipLimit": -1,
+                      "isDone": true
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
     private long createProject(String token, String name, String description) throws Exception {

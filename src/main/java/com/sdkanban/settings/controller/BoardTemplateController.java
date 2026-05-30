@@ -7,7 +7,6 @@ import com.sdkanban.settings.dto.ReorderBoardColumnTemplatesRequest;
 import com.sdkanban.settings.dto.UpdateBoardColumnTemplateRequest;
 import com.sdkanban.settings.service.BoardTemplateService;
 import com.sdkanban.user.entity.User;
-import jakarta.validation.Valid;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,7 +36,7 @@ public class BoardTemplateController {
 
     @PostMapping
     ApiResponse<BoardColumnTemplateResponse> create(
-        @Valid @RequestBody CreateBoardColumnTemplateRequest request,
+        @RequestBody CreateBoardColumnTemplateRequest request,
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(boardTemplateService.create(request, currentUserId(user)));
@@ -46,7 +45,7 @@ public class BoardTemplateController {
     @PatchMapping("/{templateKey}")
     ApiResponse<BoardColumnTemplateResponse> update(
         @PathVariable String templateKey,
-        @Valid @RequestBody UpdateBoardColumnTemplateRequest request,
+        @RequestBody UpdateBoardColumnTemplateRequest request,
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(boardTemplateService.update(templateKey, request, currentUserId(user)));
@@ -54,7 +53,7 @@ public class BoardTemplateController {
 
     @PatchMapping("/reorder")
     ApiResponse<List<BoardColumnTemplateResponse>> reorder(
-        @Valid @RequestBody ReorderBoardColumnTemplatesRequest request,
+        @RequestBody ReorderBoardColumnTemplatesRequest request,
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(boardTemplateService.reorder(request, currentUserId(user)));

@@ -12,12 +12,15 @@ import com.sdkanban.settings.repository.BoardColumnTemplateRepository;
 import com.sdkanban.settings.service.BoardTemplateService;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,15 +29,18 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     private final BoardColumnTemplateRepository boardColumnTemplateRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
+    private final Validator validator;
 
     public BoardTemplateServiceImpl(
         BoardColumnTemplateRepository boardColumnTemplateRepository,
         BoardColumnRepository boardColumnRepository,
-        UserRepository userRepository
+        UserRepository userRepository,
+        Validator validator
     ) {
         this.boardColumnTemplateRepository = boardColumnTemplateRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
+        this.validator = validator;
     }
 
     @Override
@@ -48,6 +54,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     @Transactional
     public BoardColumnTemplateResponse create(CreateBoardColumnTemplateRequest request, Long currentUserId) {
         requireAdmin(currentUserId);
+        validate(request);
         String templateKey = request.templateKey().trim();
         if (boardColumnTemplateRepository.existsByTemplateKey(templateKey)) {
             throw BusinessException.conflict("TEMPLATE_KEY_EXISTS", "Board column template key already exists");
@@ -69,6 +76,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     @Transactional
     public BoardColumnTemplateResponse update(String templateKey, UpdateBoardColumnTemplateRequest request, Long currentUserId) {
         requireAdmin(currentUserId);
+        validate(request);
         BoardColumnTemplate template = requireTemplate(templateKey);
         template.update(
             request.nameZh().trim(),
@@ -85,6 +93,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     @Transactional
     public List<BoardColumnTemplateResponse> reorder(ReorderBoardColumnTemplatesRequest request, Long currentUserId) {
         requireAdmin(currentUserId);
+        validate(request);
         List<BoardColumnTemplate> templates = boardColumnTemplateRepository.findByOrderBySortOrderAscIdAsc();
         List<String> templateKeys = request.templateKeys();
         if (templates.size() != templateKeys.size() || new HashSet<>(templateKeys).size() != templateKeys.size()) {
@@ -147,6 +156,16 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
             .orElseThrow(() -> BusinessException.forbidden("FORBIDDEN", "Access denied"));
         if (!user.isAdmin()) {
             throw BusinessException.forbidden("FORBIDDEN", "Access denied");
+        }
+    }
+
+    private <T> void validate(T request) {
+        if (request == null) {
+            throw BusinessException.badRequest("VALIDATION_FAILED", "Validation failed");
+        }
+        Set<ConstraintViolation<T>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            throw BusinessException.badRequest("VALIDATION_FAILED", "Validation failed");
         }
     }
 

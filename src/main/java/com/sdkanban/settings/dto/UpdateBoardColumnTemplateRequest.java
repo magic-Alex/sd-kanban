@@ -1,5 +1,6 @@
 package com.sdkanban.settings.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,7 @@ public record UpdateBoardColumnTemplateRequest(
     @Pattern(regexp = "^#[0-9a-fA-F]{6}$")
     String color,
 
+    @Min(1)
     Integer wipLimit,
 
     Boolean isDone
