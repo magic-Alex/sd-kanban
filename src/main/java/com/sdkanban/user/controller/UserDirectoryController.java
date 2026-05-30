@@ -1,7 +1,7 @@
 package com.sdkanban.user.controller;
 
 import com.sdkanban.common.ApiResponse;
-import com.sdkanban.user.dto.UserSummary;
+import com.sdkanban.user.dto.UserDirectoryResponse;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.service.UserDirectoryService;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,7 +23,7 @@ public class UserDirectoryController {
     }
 
     @GetMapping
-    ApiResponse<List<UserSummary>> search(
+    ApiResponse<List<UserDirectoryResponse>> search(
         @RequestParam(required = false) String keyword,
         @AuthenticationPrincipal User user
     ) {

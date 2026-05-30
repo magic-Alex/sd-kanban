@@ -1,9 +1,9 @@
 package com.sdkanban.user.service;
 
-import com.sdkanban.user.dto.UserSummary;
+import com.sdkanban.user.dto.UserDirectoryResponse;
 
 import java.util.List;
 
 public interface UserDirectoryService {
-    List<UserSummary> search(String keyword);
+    List<UserDirectoryResponse> search(String keyword);
 }

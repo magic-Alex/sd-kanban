@@ -65,7 +65,10 @@ class UserDirectoryControllerTest {
             .andExpect(jsonPath("$.data[0].account").value("alpha"))
             .andExpect(jsonPath("$.data[0].nickname").value("Alpha Match"))
             .andExpect(jsonPath("$.data[1].account").value("beta"))
-            .andExpect(jsonPath("$.data[1].email").value("beta.match@example.com"))
+            .andExpect(jsonPath("$.data[0].email").doesNotExist())
+            .andExpect(jsonPath("$.data[0].role").doesNotExist())
+            .andExpect(jsonPath("$.data[1].email").doesNotExist())
+            .andExpect(jsonPath("$.data[1].role").doesNotExist())
             .andExpect(jsonPath("$.data[?(@.account == 'disabled-match')]").doesNotExist())
             .andExpect(jsonPath("$.data[?(@.account == 'gamma')]").doesNotExist());
     }
@@ -79,23 +82,77 @@ class UserDirectoryControllerTest {
     }
 
     @Test
-    void missingKeywordReturnsActiveUsersSortedByNicknameAndAccount() throws Exception {
+    void blankAndMissingKeywordReturnEmptyList() throws Exception {
         String token = seedUserAndLogin("requester", "Requester", "requester@example.com", "ACTIVE");
-        seedUser("zeta", "Zed", "zeta@example.com", "ACTIVE");
-        seedUser("alpha-2", "Alpha", "alpha2@example.com", "ACTIVE");
-        seedUser("alpha-1", "Alpha", "alpha1@example.com", "ACTIVE");
-        seedUser("disabled", "Aardvark", "disabled@example.com", "DISABLED");
+        seedUser("alpha", "Alpha", "alpha@example.com", "ACTIVE");
 
         mockMvc.perform(get("/api/users/directory")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.length()").value(4))
-            .andExpect(jsonPath("$.data[0].account").value("alpha-1"))
-            .andExpect(jsonPath("$.data[1].account").value("alpha-2"))
-            .andExpect(jsonPath("$.data[2].account").value("requester"))
-            .andExpect(jsonPath("$.data[3].account").value("zeta"))
-            .andExpect(jsonPath("$.data[?(@.account == 'disabled')]").doesNotExist());
+            .andExpect(jsonPath("$.data.length()").value(0));
+
+        mockMvc.perform(get("/api/users/directory")
+                .header("Authorization", "Bearer " + token)
+                .param("keyword", "   "))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
+    void wildcardKeywordIsTreatedAsLiteralSubstring() throws Exception {
+        String token = seedUserAndLogin("requester", "Requester", "requester@example.com", "ACTIVE");
+        seedUser("percent", "Percent % User", "percent@example.com", "ACTIVE");
+        seedUser("underscore", "Under_score User", "underscore@example.com", "ACTIVE");
+        seedUser("backslash", "Back\\slash User", "backslash@example.com", "ACTIVE");
+        seedUser("plain", "Plain User", "plain@example.com", "ACTIVE");
+
+        mockMvc.perform(get("/api/users/directory")
+                .header("Authorization", "Bearer " + token)
+                .param("keyword", "%"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].account").value("percent"));
+
+        mockMvc.perform(get("/api/users/directory")
+                .header("Authorization", "Bearer " + token)
+                .param("keyword", "_"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].account").value("underscore"));
+
+        mockMvc.perform(get("/api/users/directory")
+                .header("Authorization", "Bearer " + token)
+                .param("keyword", "\\"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].account").value("backslash"));
+    }
+
+    @Test
+    void searchResultsAreCapped() throws Exception {
+        String token = seedUserAndLogin("requester", "Requester", "requester@example.com", "ACTIVE");
+        for (int index = 0; index < 25; index++) {
+            seedUser(
+                "match-%02d".formatted(index),
+                "Match %02d".formatted(index),
+                "match-%02d@example.com".formatted(index),
+                "ACTIVE"
+            );
+        }
+
+        mockMvc.perform(get("/api/users/directory")
+                .header("Authorization", "Bearer " + token)
+                .param("keyword", "match"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(20))
+            .andExpect(jsonPath("$.data[0].account").value("match-00"))
+            .andExpect(jsonPath("$.data[19].account").value("match-19"));
     }
 
     private String seedUserAndLogin(String account, String nickname, String email, String status) throws Exception {

@@ -1,6 +1,7 @@
 package com.sdkanban.user.repository;
 
 import com.sdkanban.user.entity.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,18 +18,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByOrderByCreatedAtDescIdDesc();
 
-    @Query("""
-        select user
-        from User user
-        where user.status = 'ACTIVE'
-          and (
-            :keyword is null
-            or :keyword = ''
-            or lower(user.account) like lower(concat('%', :keyword, '%'))
-            or lower(user.nickname) like lower(concat('%', :keyword, '%'))
-            or lower(user.email) like lower(concat('%', :keyword, '%'))
+    @Query(value = """
+        SELECT *
+        FROM users u
+        WHERE u.status = 'ACTIVE'
+          AND (
+            LOWER(u.account) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '\\\\'
+            OR LOWER(u.nickname) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '\\\\'
+            OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '\\\\'
           )
-        order by user.nickname asc, user.account asc
-        """)
-    List<User> searchActiveUsers(@Param("keyword") String keyword);
+        ORDER BY u.nickname ASC, u.account ASC
+        """, nativeQuery = true)
+    List<User> searchActiveUsers(@Param("keyword") String keyword, Pageable pageable);
 }
