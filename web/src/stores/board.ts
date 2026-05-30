@@ -3,13 +3,17 @@ import {
   fetchMyTaskBoard,
   fetchProjectBoard,
   type BoardQuery,
-  type ProjectBoard,
   type MyTaskBoard,
+  type ProjectBoard,
   type TaskCard,
 } from '../api/board'
-import { createTask, updateTaskPosition, type CreateTaskRequest } from '../api/tasks'
+import { createTask, updatePersonalTaskPosition, updateTaskPosition, type CreateTaskRequest } from '../api/tasks'
 
 function cloneBoard(board: ProjectBoard | null): ProjectBoard | null {
+  return board ? JSON.parse(JSON.stringify(board)) : null
+}
+
+function cloneMyTaskBoard(board: MyTaskBoard | null): MyTaskBoard | null {
   return board ? JSON.parse(JSON.stringify(board)) : null
 }
 
@@ -61,7 +65,7 @@ export const useBoardStore = defineStore('board', {
       this.lastFilters = {}
       this.lastProjectId = null
     },
-    async loadMyTaskBoard(groupBy = 'project') {
+    async loadMyTaskBoard(groupBy = 'template') {
       this.loading = true
       this.error = null
       try {
@@ -89,6 +93,35 @@ export const useBoardStore = defineStore('board', {
         if (this.projectBoardRequestId === boardRequestId && this.projectBoard?.projectId === boardProjectId) {
           this.projectBoard = previous
         }
+        throw error
+      } finally {
+        if (this.movingTaskId === taskId) {
+          this.movingTaskId = null
+        }
+      }
+    },
+    async movePersonalTask(taskId: number, targetTemplateKey: string, sortOrder: number) {
+      const previous = cloneMyTaskBoard(this.myTaskBoard)
+      const task = this.removePersonalTask(taskId)
+      if (!task) {
+        return
+      }
+
+      const inserted = this.insertPersonalTask(
+        { ...task, columnTemplateKey: targetTemplateKey, sortOrder },
+        targetTemplateKey,
+        sortOrder,
+      )
+      if (!inserted) {
+        this.myTaskBoard = previous
+        return
+      }
+
+      this.movingTaskId = taskId
+      try {
+        await updatePersonalTaskPosition(taskId, { targetTemplateKey, sortOrder })
+      } catch (error) {
+        this.myTaskBoard = previous
         throw error
       } finally {
         if (this.movingTaskId === taskId) {
@@ -146,6 +179,35 @@ export const useBoardStore = defineStore('board', {
       column.tasks.forEach((candidate, index) => {
         candidate.sortOrder = index
       })
+    },
+    removePersonalTask(taskId: number): TaskCard | null {
+      if (!this.myTaskBoard) {
+        return null
+      }
+      for (const group of this.myTaskBoard.groups) {
+        const index = group.tasks.findIndex((task) => task.id === taskId)
+        if (index >= 0) {
+          const [task] = group.tasks.splice(index, 1)
+          group.tasks.forEach((candidate, taskIndex) => {
+            candidate.sortOrder = taskIndex
+          })
+          return task
+        }
+      }
+      return null
+    },
+    insertPersonalTask(task: TaskCard, templateKey: string, sortOrder: number) {
+      const group = this.myTaskBoard?.groups.find((candidate) => candidate.templateKey === templateKey)
+      if (!group) {
+        return false
+      }
+      const targetIndex = Math.max(0, Math.min(sortOrder, group.tasks.length))
+      group.tasks.splice(targetIndex, 0, task)
+      group.tasks.forEach((candidate, index) => {
+        candidate.sortOrder = index
+        candidate.columnTemplateKey = templateKey
+      })
+      return true
     },
   },
 })

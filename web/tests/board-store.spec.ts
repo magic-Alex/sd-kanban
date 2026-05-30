@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { fetchMyTaskBoard, fetchProjectBoard } from '../src/api/board'
-import { archiveTask, createTask, deleteTask, updateTaskPosition } from '../src/api/tasks'
+import { archiveTask, createTask, deleteTask, updatePersonalTaskPosition, updateTaskPosition } from '../src/api/tasks'
 import { useBoardStore } from '../src/stores/board'
 
 vi.mock('../src/api/board', () => ({
@@ -13,6 +13,7 @@ vi.mock('../src/api/tasks', () => ({
   archiveTask: vi.fn(),
   createTask: vi.fn(),
   deleteTask: vi.fn(),
+  updatePersonalTaskPosition: vi.fn(),
   updateTaskPosition: vi.fn(),
 }))
 
@@ -22,6 +23,7 @@ const projectBoard = {
     {
       id: 1,
       name: 'Ready',
+      templateKey: 'READY',
       color: '#0ea5e9',
       sortOrder: 0,
       isDone: false,
@@ -29,8 +31,12 @@ const projectBoard = {
         {
           id: 12,
           projectId: 7,
+          projectCode: 'DEL',
+          projectName: 'Delivery',
+          projectColor: '#0ea5e9',
           sprintId: null,
           columnId: 1,
+          columnTemplateKey: 'READY',
           assigneeId: 3,
           assignee: { id: 3, account: 'member', nickname: 'Member', email: 'member@example.com', avatarUrl: null },
           title: 'Build board',
@@ -45,6 +51,7 @@ const projectBoard = {
     {
       id: 2,
       name: 'Done',
+      templateKey: 'DONE',
       color: '#22c55e',
       sortOrder: 1,
       isDone: true,
@@ -84,6 +91,7 @@ describe('board store', () => {
     vi.mocked(archiveTask).mockReset()
     vi.mocked(createTask).mockReset()
     vi.mocked(deleteTask).mockReset()
+    vi.mocked(updatePersonalTaskPosition).mockReset()
     vi.mocked(updateTaskPosition).mockReset()
   })
 
@@ -144,8 +152,11 @@ describe('board store', () => {
       groupBy: 'project',
       groups: [
         {
-          id: 7,
+          templateKey: 'READY',
           name: 'Delivery',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
           tasks: projectBoard.columns[0].tasks,
         },
       ],
@@ -156,6 +167,83 @@ describe('board store', () => {
 
     expect(fetchMyTaskBoard).toHaveBeenCalledWith('project')
     expect(board.myTaskBoard?.groups[0].tasks[0].title).toBe('Build board')
+  })
+
+  it('moves a personal task by template key with optimistic state', async () => {
+    vi.mocked(updatePersonalTaskPosition).mockResolvedValue({
+      ...projectBoard.columns[0].tasks[0],
+      columnTemplateKey: 'DONE',
+      sortOrder: 0,
+      creator: { id: 1, account: 'alex', nickname: 'Alex', email: null, avatarUrl: null },
+      description: null,
+      estimatedHours: null,
+      acceptanceCriteria: null,
+      tags: [],
+      createdAt: '2026-05-28T10:00:00',
+      updatedAt: '2026-05-28T10:00:00',
+    })
+    const board = useBoardStore()
+    board.myTaskBoard = {
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [structuredClone(projectBoard.columns[0].tasks[0])],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [],
+        },
+      ],
+    }
+
+    await board.movePersonalTask(12, 'DONE', 0)
+
+    expect(updatePersonalTaskPosition).toHaveBeenCalledWith(12, { targetTemplateKey: 'DONE', sortOrder: 0 })
+    expect(board.myTaskBoard.groups[0].tasks).toHaveLength(0)
+    expect(board.myTaskBoard.groups[1].tasks[0].id).toBe(12)
+    expect(board.myTaskBoard.groups[1].tasks[0].columnTemplateKey).toBe('DONE')
+    expect(board.myTaskBoard.groups[1].tasks[0].sortOrder).toBe(0)
+  })
+
+  it('restores the previous personal board when a personal move fails', async () => {
+    vi.mocked(updatePersonalTaskPosition).mockRejectedValue(new Error('network'))
+    const board = useBoardStore()
+    board.myTaskBoard = {
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [structuredClone(projectBoard.columns[0].tasks[0])],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [],
+        },
+      ],
+    }
+
+    await expect(board.movePersonalTask(12, 'DONE', 0)).rejects.toThrow('network')
+
+    expect(board.myTaskBoard.groups[0].tasks[0].id).toBe(12)
+    expect(board.myTaskBoard.groups[0].tasks[0].columnTemplateKey).toBe('READY')
+    expect(board.myTaskBoard.groups[1].tasks).toHaveLength(0)
   })
 
   it('moves a task by calling the position API', async () => {

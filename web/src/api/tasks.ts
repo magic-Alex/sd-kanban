@@ -1,5 +1,5 @@
 import type { UserSummary } from './auth'
-import { getData, http, postData } from './http'
+import { getData, http, patchData, postData } from './http'
 
 export interface TaskTag {
   id: number
@@ -32,6 +32,11 @@ export interface TaskResponse {
 
 export interface UpdateTaskPositionRequest {
   columnId: number
+  sortOrder: number
+}
+
+export interface UpdatePersonalTaskPositionRequest {
+  targetTemplateKey: string
   sortOrder: number
 }
 
@@ -118,6 +123,13 @@ export async function updateTaskPosition(
 ): Promise<unknown> {
   const response = await http.patch(`/tasks/${taskId}/position`, request)
   return response.data.data
+}
+
+export function updatePersonalTaskPosition(
+  taskId: number,
+  request: UpdatePersonalTaskPositionRequest,
+): Promise<TaskResponse> {
+  return patchData<TaskResponse, UpdatePersonalTaskPositionRequest>(`/tasks/${taskId}/personal-position`, request)
 }
 
 export async function updateTask(taskId: number, request: UpdateTaskRequest): Promise<TaskResponse> {

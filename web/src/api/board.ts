@@ -4,8 +4,12 @@ import type { UserSummary } from './auth'
 export interface TaskCard {
   id: number
   projectId: number
+  projectCode: string | null
+  projectName: string | null
+  projectColor: string | null
   sprintId: number | null
   columnId: number
+  columnTemplateKey: string | null
   assigneeId: number | null
   assignee: UserSummary | null
   title: string
@@ -20,6 +24,7 @@ export interface TaskCard {
 
 export interface BoardColumn {
   id: number
+  templateKey: string
   name: string
   color: string
   sortOrder: number
@@ -33,8 +38,11 @@ export interface ProjectBoard {
 }
 
 export interface MyTaskBoardGroup {
-  id: number
+  templateKey: string
   name: string
+  color: string
+  sortOrder: number
+  isDone: boolean
   tasks: TaskCard[]
 }
 
@@ -66,6 +74,6 @@ export function fetchProjectBoard(projectId: number | string, filters: BoardQuer
   return getData<ProjectBoard>(`/projects/${projectId}/board${queryString(filters)}`)
 }
 
-export function fetchMyTaskBoard(groupBy = 'project'): Promise<MyTaskBoard> {
+export function fetchMyTaskBoard(groupBy = 'template'): Promise<MyTaskBoard> {
   return getData<MyTaskBoard>(`/tasks/mine/board?groupBy=${encodeURIComponent(groupBy)}`)
 }

@@ -34,3 +34,8 @@ export async function patchData<T, B>(path: string, body: B): Promise<T> {
   const response = await http.patch<ApiResponse<T>>(path, body)
   return response.data.data
 }
+
+export async function deleteData<T = void>(path: string): Promise<T> {
+  const response = await http.delete<ApiResponse<T>>(path)
+  return response.data.data
+}

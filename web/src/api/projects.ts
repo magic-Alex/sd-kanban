@@ -1,8 +1,10 @@
 import type { UserSummary } from './auth'
-import { getData, postData } from './http'
+import { deleteData, getData, postData } from './http'
 
 export interface Project {
   id: number
+  projectCode: string
+  projectColor: string
   name: string
   description: string | null
   owner: UserSummary
@@ -15,6 +17,8 @@ export interface Project {
 
 export interface CreateProjectRequest {
   name: string
+  projectCode: string
+  projectColor: string
   description?: string
 }
 
@@ -38,4 +42,12 @@ export function createProject(request: CreateProjectRequest): Promise<Project> {
 
 export function fetchProjectMembers(projectId: number | string): Promise<ProjectMember[]> {
   return getData<ProjectMember[]>(`/projects/${projectId}/members`)
+}
+
+export function addProjectMember(projectId: number | string, userId: number): Promise<ProjectMember> {
+  return postData<ProjectMember, { userId: number }>(`/projects/${projectId}/members`, { userId })
+}
+
+export function removeProjectMember(projectId: number | string, userId: number | string): Promise<void> {
+  return deleteData<void>(`/projects/${projectId}/members/${userId}`)
 }
