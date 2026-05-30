@@ -336,6 +336,41 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void creatingTemplateBackfillsExistingProjectColumns() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKey": "REVIEW",
+                      "nameZh": "评审",
+                      "nameEn": "Review",
+                      "color": "#111827",
+                      "wipLimit": 2,
+                      "isDone": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.templateKey").value("REVIEW"));
+
+        assertThat(jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM board_columns
+            WHERE project_id = ? AND template_key = 'REVIEW'
+              AND name = '评审（Review）' AND color = '#111827'
+              AND sort_order = 5 AND wip_limit = 2 AND is_done = false
+            """,
+            Integer.class,
+            projectId
+        )).isEqualTo(1);
+    }
+
+    @Test
     void adminReordersTemplatesAndProjectColumnsWithoutSortConstraintFailure() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
         RegisteredUser owner = register("owner", "Owner");

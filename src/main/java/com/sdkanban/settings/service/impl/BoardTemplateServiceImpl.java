@@ -3,6 +3,7 @@ package com.sdkanban.settings.service.impl;
 import com.sdkanban.board.entity.BoardColumn;
 import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
+import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.settings.dto.BoardColumnTemplateResponse;
 import com.sdkanban.settings.dto.CreateBoardColumnTemplateRequest;
 import com.sdkanban.settings.dto.ReorderBoardColumnTemplatesRequest;
@@ -29,17 +30,20 @@ import java.util.stream.Collectors;
 public class BoardTemplateServiceImpl implements BoardTemplateService {
     private final BoardColumnTemplateRepository boardColumnTemplateRepository;
     private final BoardColumnRepository boardColumnRepository;
+    private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final Validator validator;
 
     public BoardTemplateServiceImpl(
         BoardColumnTemplateRepository boardColumnTemplateRepository,
         BoardColumnRepository boardColumnRepository,
+        ProjectRepository projectRepository,
         UserRepository userRepository,
         Validator validator
     ) {
         this.boardColumnTemplateRepository = boardColumnTemplateRepository;
         this.boardColumnRepository = boardColumnRepository;
+        this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.validator = validator;
     }
@@ -71,6 +75,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
                 request.wipLimit(),
                 Boolean.TRUE.equals(request.isDone())
             ));
+            backfillProjectColumns(template);
             return BoardColumnTemplateResponse.from(template);
         } catch (DataIntegrityViolationException exception) {
             throw templateKeyExists();
@@ -211,6 +216,25 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
                 .forEach(column -> column.changeSortOrder(stagedSortOrder));
         }
         boardColumnRepository.flush();
+    }
+
+    private void backfillProjectColumns(BoardColumnTemplate template) {
+        List<BoardColumn> columns = projectRepository.findAll().stream()
+            .filter(project -> boardColumnRepository.findByProjectIdAndTemplateKey(
+                project.getId(),
+                template.getTemplateKey()
+            ).isEmpty())
+            .map(project -> new BoardColumn(
+                project.getId(),
+                template.getTemplateKey(),
+                template.getDisplayName(),
+                template.getColor(),
+                template.getSortOrder(),
+                template.getWipLimit(),
+                template.isDone()
+            ))
+            .toList();
+        boardColumnRepository.saveAll(columns);
     }
 
     private BusinessException templateKeyExists() {
