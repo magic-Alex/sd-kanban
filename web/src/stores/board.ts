@@ -75,6 +75,7 @@ export const useBoardStore = defineStore('board', {
     async loadMyTaskBoard(groupBy = 'template') {
       const requestId = this.myTaskBoardRequestId + 1
       this.myTaskBoardRequestId = requestId
+      this.movingTaskId = null
       this.loading = true
       this.error = null
       try {
@@ -83,10 +84,14 @@ export const useBoardStore = defineStore('board', {
           this.myTaskBoard = myTaskBoard
         }
       } catch (error) {
-        this.error = '我的任务加载失败'
+        if (this.myTaskBoardRequestId === requestId) {
+          this.error = '我的任务加载失败'
+        }
         throw error
       } finally {
-        this.loading = false
+        if (this.myTaskBoardRequestId === requestId) {
+          this.loading = false
+        }
       }
     },
     async moveTask(taskId: number, columnId: number, sortOrder: number) {

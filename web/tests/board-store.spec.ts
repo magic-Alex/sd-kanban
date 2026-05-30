@@ -305,6 +305,108 @@ describe('board store', () => {
     expect(board.myTaskBoard?.groups[1].tasks[0].title).toBe('Fresh task')
   })
 
+  it('clears moving task state when a personal move is superseded by a refresh', async () => {
+    const moveRequest = deferred<Awaited<ReturnType<typeof updatePersonalTaskPosition>>>()
+    vi.mocked(updatePersonalTaskPosition).mockReturnValue(moveRequest.promise)
+    vi.mocked(fetchMyTaskBoard).mockResolvedValue({
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [{ ...projectBoard.columns[0].tasks[0], columnTemplateKey: 'DONE' }],
+        },
+      ],
+    })
+    const board = useBoardStore()
+    board.myTaskBoard = {
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'READY',
+          name: 'Ready',
+          color: '#0ea5e9',
+          sortOrder: 0,
+          isDone: false,
+          tasks: [structuredClone(projectBoard.columns[0].tasks[0])],
+        },
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [],
+        },
+      ],
+    }
+
+    const moveTask = board.movePersonalTask(12, 'DONE', 0)
+    expect(board.movingTaskId).toBe(12)
+    await board.loadMyTaskBoard()
+    moveRequest.resolve({
+      ...projectBoard.columns[0].tasks[0],
+      columnId: 2,
+      sortOrder: 0,
+      creator: { id: 1, account: 'alex', nickname: 'Alex', email: null, avatarUrl: null },
+      description: null,
+      estimatedHours: null,
+      acceptanceCriteria: null,
+      tags: [],
+      createdAt: '2026-05-28T10:00:00',
+      updatedAt: '2026-05-28T10:00:00',
+    })
+    await moveTask
+
+    expect(board.movingTaskId).toBeNull()
+  })
+
+  it('ignores stale my-task board load failures and loading cleanup', async () => {
+    const firstLoad = deferred<Awaited<ReturnType<typeof fetchMyTaskBoard>>>()
+    const secondLoad = deferred<Awaited<ReturnType<typeof fetchMyTaskBoard>>>()
+    vi.mocked(fetchMyTaskBoard)
+      .mockReturnValueOnce(firstLoad.promise)
+      .mockReturnValueOnce(secondLoad.promise)
+    const board = useBoardStore()
+
+    const staleLoad = board.loadMyTaskBoard('template')
+    const currentLoad = board.loadMyTaskBoard('template')
+    secondLoad.resolve({
+      groupBy: 'template',
+      groups: [
+        {
+          templateKey: 'DONE',
+          name: 'Done',
+          color: '#22c55e',
+          sortOrder: 1,
+          isDone: true,
+          tasks: [{ ...projectBoard.columns[0].tasks[0], id: 55, title: 'Current task' }],
+        },
+      ],
+    })
+    await currentLoad
+
+    board.error = null
+    board.loading = true
+    firstLoad.reject(new Error('stale load failed'))
+    await expect(staleLoad).rejects.toThrow('stale load failed')
+
+    expect(board.myTaskBoard?.groups[0].tasks[0].id).toBe(55)
+    expect(board.error).toBeNull()
+    expect(board.loading).toBe(true)
+  })
+
   it('moves a task by calling the position API', async () => {
     vi.mocked(updateTaskPosition).mockResolvedValue({ ...projectBoard.columns[0].tasks[0], columnId: 2, sortOrder: 0 })
     const board = useBoardStore()
