@@ -1,15 +1,37 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import ProjectMemberManager from '../components/project/ProjectMemberManager.vue'
+import { useAuthStore } from '../stores/auth'
 import { useProjectsStore } from '../stores/projects'
 
 const route = useRoute()
+const auth = useAuthStore()
 const projects = useProjectsStore()
 const projectId = computed(() => String(route.params.projectId))
+const ownerId = computed(() => projects.currentProject?.owner.id ?? 0)
+const currentUserId = computed(() => auth.user?.id ?? null)
 
 onMounted(() => {
-  projects.fetchProject(projectId.value)
+  void loadProjectContext()
 })
+
+async function loadProjectContext() {
+  await Promise.allSettled([
+    projects.fetchProject(projectId.value),
+    projects.fetchMembers(projectId.value),
+  ])
+}
+
+async function addMember(userId: number) {
+  await projects.addMember(projectId.value, userId)
+  await projects.fetchMembers(projectId.value)
+}
+
+async function removeMember(userId: number) {
+  await projects.removeMember(projectId.value, userId)
+  await projects.fetchMembers(projectId.value)
+}
 </script>
 
 <template>
@@ -28,6 +50,17 @@ onMounted(() => {
     <section v-if="projects.currentProject" class="detail-grid">
       <article class="panel-block">
         <h2>项目概览</h2>
+        <div class="project-metadata">
+          <span class="project-code">{{ projects.currentProject.projectCode }}</span>
+          <span class="metadata-swatch">
+            <i
+              class="project-color-swatch"
+              :style="{ backgroundColor: projects.currentProject.projectColor }"
+              :aria-label="`项目颜色 ${projects.currentProject.projectColor}`"
+            />
+            {{ projects.currentProject.projectColor }}
+          </span>
+        </div>
         <p>{{ projects.currentProject.description || '暂无描述' }}</p>
       </article>
       <article class="panel-block">
@@ -39,6 +72,16 @@ onMounted(() => {
         <h2>成员数量</h2>
         <p class="large-number">{{ projects.currentProject.memberCount }}</p>
       </article>
+      <ProjectMemberManager
+        class="detail-members"
+        :members="projects.members"
+        :owner-id="ownerId"
+        :current-user-id="currentUserId"
+        :loading="projects.membersLoading"
+        :error="projects.memberActionError"
+        @add-member="addMember"
+        @remove-member="removeMember"
+      />
     </section>
   </main>
 </template>

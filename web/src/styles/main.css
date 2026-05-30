@@ -187,6 +187,11 @@ select:hover {
   border-color: #b7c4d0;
 }
 
+input[type="color"] {
+  min-height: 44px;
+  padding: 4px;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -716,6 +721,122 @@ small {
 .project-row > span:first-child {
   display: grid;
   gap: 4px;
+}
+
+.project-row strong,
+.metadata-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-code {
+  width: fit-content;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.project-color-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 999px;
+}
+
+.project-metadata {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.metadata-swatch {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.detail-members {
+  grid-column: 1 / -1;
+}
+
+.member-search-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.member-candidates,
+.member-list {
+  display: grid;
+  gap: 10px;
+}
+
+.candidate-button,
+.member-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: var(--color-surface-muted);
+}
+
+.candidate-button {
+  grid-template-columns: minmax(0, 1fr) auto;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.candidate-button:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.candidate-button span,
+.member-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.candidate-button small,
+.member-main small,
+.member-joined {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-role {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.member-role.owner {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .large-number {
@@ -1388,11 +1509,18 @@ small {
   .page-header,
   .header-actions,
   .project-row,
+  .member-row,
+  .member-search-form,
   .section-heading,
   .modal-header,
   .drawer-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .member-row,
+  .member-search-form {
+    grid-template-columns: 1fr;
   }
 
   .header-actions,

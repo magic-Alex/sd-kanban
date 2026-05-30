@@ -7,6 +7,8 @@ const router = useRouter()
 const projects = useProjectsStore()
 const creating = ref(false)
 const form = reactive({
+  projectCode: '',
+  projectColor: '#0ea5e9',
   name: '',
   description: '',
 })
@@ -20,8 +22,12 @@ async function submit() {
   try {
     const project = await projects.createProject({
       name: form.name,
+      projectCode: form.projectCode,
+      projectColor: form.projectColor,
       description: form.description,
     })
+    form.projectCode = ''
+    form.projectColor = '#0ea5e9'
     form.name = ''
     form.description = ''
     await router.push(`/projects/${project.id}`)
@@ -41,15 +47,29 @@ async function submit() {
     </header>
 
     <section class="split-layout">
-      <form class="panel-block project-form" @submit.prevent="submit">
+      <form class="panel-block project-form" aria-label="新建项目表单" @submit.prevent="submit">
         <h2>新建项目</h2>
         <label>
           名称
-          <input v-model="form.name" required maxlength="120" />
+          <input v-model="form.name" aria-label="项目名称" required maxlength="120" />
+        </label>
+        <label>
+          项目编号
+          <input
+            v-model="form.projectCode"
+            aria-label="项目编号"
+            autocomplete="off"
+            required
+            maxlength="32"
+          />
+        </label>
+        <label>
+          项目颜色
+          <input v-model="form.projectColor" aria-label="项目颜色" type="color" required />
         </label>
         <label>
           描述
-          <textarea v-model="form.description" rows="4" />
+          <textarea v-model="form.description" aria-label="项目描述" rows="4" />
         </label>
         <button class="primary-button" type="submit" :disabled="creating">
           {{ creating ? '创建中' : '创建项目' }}
@@ -66,7 +86,15 @@ async function submit() {
           :to="`/projects/${project.id}`"
         >
           <span>
-            <strong>{{ project.name }}</strong>
+            <strong>
+              <i
+                class="project-color-swatch"
+                :style="{ backgroundColor: project.projectColor }"
+                :aria-label="`项目颜色 ${project.projectColor}`"
+              />
+              {{ project.name }}
+            </strong>
+            <small class="project-code">{{ project.projectCode }}</small>
             <small>{{ project.description || '暂无描述' }}</small>
           </span>
           <span class="row-meta">{{ project.owner.nickname }} · {{ project.memberCount }} 人</span>
