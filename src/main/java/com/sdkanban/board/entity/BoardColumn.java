@@ -10,6 +10,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "board_columns")
@@ -76,7 +77,7 @@ public class BoardColumn {
         Integer wipLimit,
         boolean done
     ) {
-        this(projectId, defaultTemplateKey(name, sortOrder), name, color, sortOrder, wipLimit, done);
+        this(projectId, defaultTemplateKey(), name, color, sortOrder, wipLimit, done);
     }
 
     public Long getId() {
@@ -138,22 +139,7 @@ public class BoardColumn {
         this.done = done;
     }
 
-    private static String defaultTemplateKey(String name, Integer sortOrder) {
-        if (Integer.valueOf(0).equals(sortOrder) || "Backlog".equals(name)) {
-            return "BACKLOG";
-        }
-        if (Integer.valueOf(1).equals(sortOrder) || "Ready".equals(name)) {
-            return "READY";
-        }
-        if (Integer.valueOf(2).equals(sortOrder) || "In Progress".equals(name)) {
-            return "IN_PROGRESS";
-        }
-        if (Integer.valueOf(3).equals(sortOrder) || "Testing".equals(name)) {
-            return "TESTING";
-        }
-        if (Integer.valueOf(4).equals(sortOrder) || "Done".equals(name)) {
-            return "DONE";
-        }
-        return "CUSTOM_" + System.nanoTime();
+    private static String defaultTemplateKey() {
+        return "CUSTOM_" + UUID.randomUUID();
     }
 }

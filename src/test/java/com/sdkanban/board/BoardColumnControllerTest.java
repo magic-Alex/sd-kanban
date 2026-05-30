@@ -163,8 +163,8 @@ class BoardColumnControllerTest {
         long projectId = createProject(owner.token(), "Delivery", "Delivery board");
         jdbcTemplate.update(
             """
-            INSERT INTO board_columns (project_id, name, color, sort_order, is_done)
-            VALUES (?, 'Work', '#64748b', 100, false)
+            INSERT INTO board_columns (project_id, template_key, name, color, sort_order, is_done)
+            VALUES (?, 'CUSTOM_WORK', 'Work', '#64748b', 100, false)
             """,
             projectId
         );

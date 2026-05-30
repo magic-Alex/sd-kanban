@@ -7,7 +7,7 @@ SET project_code = CONCAT('PRJ-', id)
 WHERE project_code IS NULL;
 
 ALTER TABLE projects
-    MODIFY project_code VARCHAR(40) NOT NULL,
+    MODIFY project_code VARCHAR(40) NOT NULL DEFAULT (UUID()),
     ADD UNIQUE KEY uk_projects_project_code (project_code);
 
 ALTER TABLE board_columns
@@ -15,15 +15,40 @@ ALTER TABLE board_columns
     ADD KEY idx_board_columns_template_key (template_key);
 
 UPDATE board_columns
-SET template_key = CASE
-    WHEN sort_order = 0 OR name = 'Backlog' THEN 'BACKLOG'
-    WHEN sort_order = 1 OR name = 'Ready' THEN 'READY'
-    WHEN sort_order = 2 OR name = 'In Progress' THEN 'IN_PROGRESS'
-    WHEN sort_order = 3 OR name = 'Testing' THEN 'TESTING'
-    WHEN sort_order = 4 OR name = 'Done' THEN 'DONE'
-    ELSE CONCAT('CUSTOM_', id)
-END
+SET template_key = CONCAT('CUSTOM_', id)
 WHERE template_key IS NULL;
+
+UPDATE board_columns column_table
+JOIN (
+    SELECT id, template_key
+    FROM (
+        SELECT
+            id,
+            template_key,
+            ROW_NUMBER() OVER (
+                PARTITION BY project_id, template_key
+                ORDER BY sort_order, id
+            ) AS template_rank
+        FROM (
+            SELECT
+                id,
+                project_id,
+                sort_order,
+                CASE
+                    WHEN sort_order = 0 OR name = 'Backlog' THEN 'BACKLOG'
+                    WHEN sort_order = 1 OR name = 'Ready' THEN 'READY'
+                    WHEN sort_order = 2 OR name = 'In Progress' THEN 'IN_PROGRESS'
+                    WHEN sort_order = 3 OR name = 'Testing' THEN 'TESTING'
+                    WHEN sort_order = 4 OR name = 'Done' THEN 'DONE'
+                    ELSE NULL
+                END AS template_key
+            FROM board_columns
+        ) template_candidates
+        WHERE template_key IS NOT NULL
+    ) ranked_templates
+    WHERE template_rank = 1
+) canonical_templates ON canonical_templates.id = column_table.id
+SET column_table.template_key = canonical_templates.template_key;
 
 ALTER TABLE board_columns
     MODIFY template_key VARCHAR(60) NOT NULL,

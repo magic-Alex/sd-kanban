@@ -199,11 +199,11 @@ public class ProjectServiceImpl implements ProjectService {
 
     private void initializeDefaultColumns(Long projectId) {
         boardColumnRepository.saveAll(List.of(
-            new BoardColumn(projectId, "Backlog", "#64748b", 0, null, false),
-            new BoardColumn(projectId, "Ready", "#0ea5e9", 1, null, false),
-            new BoardColumn(projectId, "In Progress", "#f59e0b", 2, null, false),
-            new BoardColumn(projectId, "Testing", "#8b5cf6", 3, null, false),
-            new BoardColumn(projectId, "Done", "#22c55e", 4, null, true)
+            new BoardColumn(projectId, "BACKLOG", "Backlog", "#64748b", 0, null, false),
+            new BoardColumn(projectId, "READY", "Ready", "#0ea5e9", 1, null, false),
+            new BoardColumn(projectId, "IN_PROGRESS", "In Progress", "#f59e0b", 2, null, false),
+            new BoardColumn(projectId, "TESTING", "Testing", "#8b5cf6", 3, null, false),
+            new BoardColumn(projectId, "DONE", "Done", "#22c55e", 4, null, true)
         ));
     }
 
