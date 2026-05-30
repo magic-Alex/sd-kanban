@@ -17,6 +17,7 @@ import com.sdkanban.task.dto.TaskActivityResponse;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
+import com.sdkanban.task.dto.UpdatePersonalTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
@@ -226,6 +227,25 @@ public class TaskServiceImpl implements TaskService {
         projectService.requireMember(task.getProjectId(), currentUserId);
         validateColumn(task.getProjectId(), request.columnId());
         change(task, currentUserId, "columnId", task.getColumnId(), request.columnId(), task::changeColumnId);
+        change(task, currentUserId, "sortOrder", task.getSortOrder(), request.sortOrder(), task::changeSortOrder);
+        return toTaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updatePersonalPosition(Long taskId, UpdatePersonalTaskPositionRequest request, Long currentUserId) {
+        Task task = requireTask(taskId);
+        projectService.requireMember(task.getProjectId(), currentUserId);
+        if (!Objects.equals(task.getAssigneeId(), currentUserId)) {
+            throw BusinessException.forbidden("TASK_ASSIGNEE_REQUIRED", "Personal task move requires task assignee permission");
+        }
+        BoardColumn targetColumn = boardColumnRepository
+            .findByProjectIdAndTemplateKey(task.getProjectId(), request.targetTemplateKey())
+            .orElseThrow(() -> BusinessException.badRequest(
+                "TARGET_TEMPLATE_COLUMN_MISSING",
+                "Target template column is missing from the task project"
+            ));
+        change(task, currentUserId, "columnId", task.getColumnId(), targetColumn.getId(), task::changeColumnId);
         change(task, currentUserId, "sortOrder", task.getSortOrder(), request.sortOrder(), task::changeSortOrder);
         return toTaskResponse(task);
     }

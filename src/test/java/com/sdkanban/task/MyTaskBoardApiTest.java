@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -232,6 +233,100 @@ class MyTaskBoardApiTest {
             .andExpect(jsonPath("$.data.groups[5].sortOrder").value(5))
             .andExpect(jsonPath("$.data.groups[5].isDone").value(false))
             .andExpect(jsonPath("$.data.groups[5].tasks.length()").value(0));
+    }
+
+    @Test
+    void assigneeCanMovePersonalTaskByTemplateKeyWithinExistingProject() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        List<Long> columns = columnIds(fixture.projectId());
+        long backlogColumnId = columns.get(0);
+        long readyColumnId = columns.get(1);
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), backlogColumnId, fixture.member().id(), "Personal move");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": 7
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.projectId").value(fixture.projectId()))
+            .andExpect(jsonPath("$.data.columnId").value(readyColumnId))
+            .andExpect(jsonPath("$.data.sortOrder").value(7));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT CONCAT(project_id, ':', column_id, ':', sort_order) FROM tasks WHERE id = ?",
+            String.class,
+            taskId
+        )).isEqualTo(fixture.projectId() + ":" + readyColumnId + ":7");
+        assertThat(jdbcTemplate.query(
+            """
+            SELECT field_name FROM task_activities
+            WHERE task_id = ? AND action_type = 'TASK_UPDATED'
+            ORDER BY field_name
+            """,
+            (rs, rowNum) -> rs.getString("field_name"),
+            taskId
+        )).containsExactly("columnId", "sortOrder");
+    }
+
+    @Test
+    void nonAssigneeCannotMovePersonalTask() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        List<Long> columns = columnIds(fixture.projectId());
+        long backlogColumnId = columns.get(0);
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), backlogColumnId, fixture.owner().id(), "Not mine");
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": 4
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TASK_ASSIGNEE_REQUIRED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT CONCAT(column_id, ':', sort_order) FROM tasks WHERE id = ?",
+            String.class,
+            taskId
+        )).isEqualTo(backlogColumnId + ":0");
+    }
+
+    @Test
+    void personalMoveToMissingTemplateColumnLeavesTaskUnchanged() throws Exception {
+        Fixture fixture = fixtureWithOwnerAndMember();
+        List<Long> columns = columnIds(fixture.projectId());
+        long backlogColumnId = columns.get(0);
+        long taskId = createTask(fixture.member().token(), fixture.projectId(), backlogColumnId, fixture.member().id(), "Missing target");
+        jdbcTemplate.update("DELETE FROM board_columns WHERE project_id = ? AND template_key = 'READY'", fixture.projectId());
+
+        mockMvc.perform(patch("/api/tasks/{taskId}/personal-position", taskId)
+                .header("Authorization", "Bearer " + fixture.member().token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "targetTemplateKey": "READY",
+                      "sortOrder": 9
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TARGET_TEMPLATE_COLUMN_MISSING"));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT CONCAT(column_id, ':', sort_order) FROM tasks WHERE id = ?",
+            String.class,
+            taskId
+        )).isEqualTo(backlogColumnId + ":0");
     }
 
     private Fixture fixtureWithOwnerAndMember() throws Exception {

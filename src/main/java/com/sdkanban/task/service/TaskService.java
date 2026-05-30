@@ -7,6 +7,7 @@ import com.sdkanban.task.dto.TaskActivityResponse;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
+import com.sdkanban.task.dto.UpdatePersonalTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
@@ -21,6 +22,8 @@ public interface TaskService {
     TaskResponse update(Long taskId, UpdateTaskRequest request, Long currentUserId);
 
     TaskResponse updatePosition(Long taskId, UpdateTaskPositionRequest request, Long currentUserId);
+
+    TaskResponse updatePersonalPosition(Long taskId, UpdatePersonalTaskPositionRequest request, Long currentUserId);
 
     TaskResponse archive(Long taskId, Long currentUserId);
 

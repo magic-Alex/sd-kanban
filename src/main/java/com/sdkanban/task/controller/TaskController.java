@@ -9,6 +9,7 @@ import com.sdkanban.task.dto.TaskActivityResponse;
 import com.sdkanban.task.dto.TaskCommentResponse;
 import com.sdkanban.task.dto.TaskResponse;
 import com.sdkanban.task.dto.TaskTagResponse;
+import com.sdkanban.task.dto.UpdatePersonalTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskPositionRequest;
 import com.sdkanban.task.dto.UpdateTaskRequest;
 import com.sdkanban.task.dto.UpdateTaskTagsRequest;
@@ -73,6 +74,15 @@ public class TaskController {
         @AuthenticationPrincipal User user
     ) {
         return ApiResponse.ok(taskService.updatePosition(taskId, request, currentUserId(user)));
+    }
+
+    @PatchMapping("/tasks/{taskId}/personal-position")
+    ApiResponse<TaskResponse> updatePersonalPosition(
+        @PathVariable Long taskId,
+        @Valid @RequestBody UpdatePersonalTaskPositionRequest request,
+        @AuthenticationPrincipal User user
+    ) {
+        return ApiResponse.ok(taskService.updatePersonalPosition(taskId, request, currentUserId(user)));
     }
 
     @PatchMapping("/tasks/{taskId}/archive")
