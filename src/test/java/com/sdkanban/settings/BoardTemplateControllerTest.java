@@ -441,6 +441,49 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void adminReordersTemplatesWithMissingTemplateAndLegacyColumnWithoutSortConstraintFailure() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        jdbcTemplate.update(
+            "DELETE FROM board_columns WHERE project_id = ? AND template_key = 'IN_PROGRESS'",
+            projectId
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_columns (project_id, template_key, name, color, sort_order, is_done)
+            VALUES (?, 'CUSTOM_X', 'Legacy Custom', '#64748b', 2, false)
+            """,
+            projectId
+        );
+
+        mockMvc.perform(patch("/api/admin/board-templates/reorder")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKeys": ["BACKLOG", "IN_PROGRESS", "READY", "TESTING", "DONE"]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+        Integer readySortOrder = jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM board_columns WHERE project_id = ? AND template_key = 'READY'",
+            Integer.class,
+            projectId
+        );
+        Integer customSortOrder = jdbcTemplate.queryForObject(
+            "SELECT sort_order FROM board_columns WHERE project_id = ? AND template_key = 'CUSTOM_X'",
+            Integer.class,
+            projectId
+        );
+
+        assertThat(readySortOrder).isEqualTo(2);
+        assertThat(customSortOrder).isGreaterThan(4);
+    }
+
+    @Test
     void adminCreateAndUpdateRejectNonPositiveWipLimits() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
 

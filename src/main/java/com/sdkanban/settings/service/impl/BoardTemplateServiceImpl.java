@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -213,11 +214,28 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     }
 
     private void stageProjectColumns(List<String> templateKeys) {
-        for (int index = 0; index < templateKeys.size(); index++) {
-            int stagedSortOrder = -(index + 100_000);
-            boardColumnRepository.findByTemplateKey(templateKeys.get(index))
-                .forEach(column -> column.changeSortOrder(stagedSortOrder));
+        Set<String> templateKeySet = new HashSet<>(templateKeys);
+        Set<Long> affectedProjectIds = templateKeys.stream()
+            .flatMap(templateKey -> boardColumnRepository.findByTemplateKey(templateKey).stream())
+            .map(BoardColumn::getProjectId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<ColumnShift> customColumnShifts = new ArrayList<>();
+        int stagedIndex = 0;
+        for (Long projectId : affectedProjectIds) {
+            List<BoardColumn> projectColumns = boardColumnRepository.findByProjectIdOrderBySortOrderAscIdAsc(projectId);
+            int customSortOrder = templateKeys.size();
+            for (BoardColumn column : projectColumns) {
+                column.changeSortOrder(-(100_000 + stagedIndex));
+                stagedIndex++;
+                if (!templateKeySet.contains(column.getTemplateKey())) {
+                    customColumnShifts.add(new ColumnShift(column, customSortOrder));
+                    customSortOrder++;
+                }
+            }
         }
+        boardColumnRepository.flush();
+        customColumnShifts.forEach(shift -> shift.column().changeSortOrder(shift.finalSortOrder()));
         boardColumnRepository.flush();
     }
 
