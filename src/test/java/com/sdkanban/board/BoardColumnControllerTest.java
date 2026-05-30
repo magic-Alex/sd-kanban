@@ -70,11 +70,11 @@ class BoardColumnControllerTest {
     }
 
     @Test
-    void projectOwnerCanCreateRenameAndReorderColumns() throws Exception {
+    void projectOwnerCannotCreateColumnsBecauseGlobalTemplatesAreRequired() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         long projectId = createProject(owner.token(), "Delivery", "Delivery board");
 
-        String createResponse = mockMvc.perform(post("/api/projects/{projectId}/columns", projectId)
+        mockMvc.perform(post("/api/projects/{projectId}/columns", projectId)
                 .header("Authorization", "Bearer " + owner.token())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -85,56 +85,9 @@ class BoardColumnControllerTest {
                       "isDone": false
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.name").value("Blocked"))
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
-        long blockedColumnId = objectMapper.readTree(createResponse).path("data").path("id").asLong();
-
-        mockMvc.perform(patch("/api/projects/{projectId}/columns/{columnId}", projectId, blockedColumnId)
-                .header("Authorization", "Bearer " + owner.token())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                      "name": "Blocked / Waiting",
-                      "color": "#f97316",
-                      "wipLimit": 2,
-                      "isDone": false
-                    }
-                    """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.name").value("Blocked / Waiting"))
-            .andExpect(jsonPath("$.data.wipLimit").value(2));
-
-        List<Long> orderedIds = jdbcTemplate.query(
-            "SELECT id FROM board_columns WHERE project_id = ? ORDER BY sort_order",
-            (rs, rowNum) -> rs.getLong("id"),
-            projectId
-        );
-        orderedIds.remove(blockedColumnId);
-        orderedIds.add(1, blockedColumnId);
-
-        mockMvc.perform(patch("/api/projects/{projectId}/columns/reorder", projectId)
-                .header("Authorization", "Bearer " + owner.token())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                      "columnIds": %s
-                    }
-                    """.formatted(objectMapper.writeValueAsString(orderedIds))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data[1].id").value(blockedColumnId));
-
-        List<Long> persistedOrder = jdbcTemplate.query(
-            "SELECT id FROM board_columns WHERE project_id = ? ORDER BY sort_order",
-            (rs, rowNum) -> rs.getLong("id"),
-            projectId
-        );
-        assertThat(persistedOrder).containsExactlyElementsOf(orderedIds);
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("GLOBAL_TEMPLATE_REQUIRED"));
     }
 
     @Test
@@ -185,9 +138,9 @@ class BoardColumnControllerTest {
 
         mockMvc.perform(delete("/api/projects/{projectId}/columns/{columnId}", projectId, columnId)
                 .header("Authorization", "Bearer " + owner.token()))
-            .andExpect(status().isConflict())
+            .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
-            .andExpect(jsonPath("$.code").value("COLUMN_NOT_EMPTY"));
+            .andExpect(jsonPath("$.code").value("GLOBAL_TEMPLATE_REQUIRED"));
     }
 
     private long createProject(String token, String name, String description) throws Exception {

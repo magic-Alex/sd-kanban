@@ -13,9 +13,24 @@ public interface BoardColumnRepository extends JpaRepository<BoardColumn, Long> 
 
     Optional<BoardColumn> findByIdAndProjectId(Long id, Long projectId);
 
+    List<BoardColumn> findByTemplateKey(String templateKey);
+
+    Optional<BoardColumn> findByProjectIdAndTemplateKey(Long projectId, String templateKey);
+
+    void deleteByTemplateKey(String templateKey);
+
     @Query("select coalesce(max(column.sortOrder), -1) from BoardColumn column where column.projectId = :projectId")
     int maxSortOrderByProjectId(@Param("projectId") Long projectId);
 
     @Query(value = "SELECT COUNT(*) FROM tasks WHERE project_id = :projectId AND column_id = :columnId", nativeQuery = true)
     long countTasksInColumn(@Param("projectId") Long projectId, @Param("columnId") Long columnId);
+
+    @Query(value = """
+        SELECT COUNT(*)
+        FROM tasks task
+        JOIN board_columns column_table ON column_table.id = task.column_id
+        WHERE column_table.template_key = :templateKey
+          AND task.is_deleted = false
+        """, nativeQuery = true)
+    long countTasksByTemplateKey(@Param("templateKey") String templateKey);
 }
