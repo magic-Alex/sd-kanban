@@ -4,6 +4,7 @@ import java.util.List;
 
 public record BoardColumnTasks(
     Long id,
+    String templateKey,
     String name,
     String color,
     Integer sortOrder,

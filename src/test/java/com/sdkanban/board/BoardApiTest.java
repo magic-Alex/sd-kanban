@@ -83,9 +83,15 @@ class BoardApiTest {
             .andExpect(jsonPath("$.data.projectId").value(fixture.projectId()))
             .andExpect(jsonPath("$.data.columns.length()").value(5))
             .andExpect(jsonPath("$.data.columns[0].name").value("待办（Backlog）"))
+            .andExpect(jsonPath("$.data.columns[0].templateKey").value("BACKLOG"))
             .andExpect(jsonPath("$.data.columns[0].tasks[0].id").value(backlogTaskId))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].projectCode").value(fixture.projectCode()))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].projectName").value("Delivery"))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].projectColor").value(fixture.projectColor()))
+            .andExpect(jsonPath("$.data.columns[0].tasks[0].columnTemplateKey").value("BACKLOG"))
             .andExpect(jsonPath("$.data.columns[0].tasks[0].assignee.id").value(fixture.member().id()))
             .andExpect(jsonPath("$.data.columns[0].tasks[0].assignee.nickname").value("member"))
+            .andExpect(jsonPath("$.data.columns[1].templateKey").value("READY"))
             .andExpect(jsonPath("$.data.columns[1].tasks[0].title").value("Ready API"));
     }
 
@@ -270,9 +276,9 @@ class BoardApiTest {
     private Fixture fixtureWithOwnerAndMember(String ownerAccount, String memberAccount, String projectName) throws Exception {
         RegisteredUser owner = register(ownerAccount, ownerAccount);
         RegisteredUser member = register(memberAccount, memberAccount);
-        long projectId = createProject(owner.token(), projectName, projectName + " board");
-        addMember(owner.token(), projectId, member.id());
-        return new Fixture(owner, member, projectId);
+        CreatedProject project = createProject(owner.token(), projectName, projectName + " board");
+        addMember(owner.token(), project.id(), member.id());
+        return new Fixture(owner, member, project.id(), project.projectCode(), project.projectColor());
     }
 
     private long createTask(
@@ -349,8 +355,10 @@ class BoardApiTest {
         return objectMapper.readTree(response).path("data").path("id").asLong();
     }
 
-    private long createProject(String token, String name, String description) throws Exception {
+    private CreatedProject createProject(String token, String name, String description) throws Exception {
         int sequence = PROJECT_SEQUENCE.incrementAndGet();
+        String projectCode = "BOARD-" + sequence;
+        String projectColor = "#0f766e";
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -358,15 +366,19 @@ class BoardApiTest {
                     {
                       "name": "%s",
                       "description": "%s",
-                      "projectCode": "BOARD-%d",
-                      "projectColor": "#0f766e"
+                      "projectCode": "%s",
+                      "projectColor": "%s"
                     }
-                    """.formatted(name, description, sequence)))
+                    """.formatted(name, description, projectCode, projectColor)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()
             .getContentAsString();
-        return objectMapper.readTree(response).path("data").path("id").asLong();
+        return new CreatedProject(
+            objectMapper.readTree(response).path("data").path("id").asLong(),
+            projectCode,
+            projectColor
+        );
     }
 
     private void resetDefaultBoardTemplates() {
@@ -445,6 +457,9 @@ class BoardApiTest {
     private record RegisteredUser(long id, String token) {
     }
 
-    private record Fixture(RegisteredUser owner, RegisteredUser member, long projectId) {
+    private record CreatedProject(long id, String projectCode, String projectColor) {
+    }
+
+    private record Fixture(RegisteredUser owner, RegisteredUser member, long projectId, String projectCode, String projectColor) {
     }
 }

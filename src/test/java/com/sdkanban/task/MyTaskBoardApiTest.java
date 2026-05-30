@@ -48,10 +48,11 @@ class MyTaskBoardApiTest {
         jdbcTemplate.update("DELETE FROM project_members");
         jdbcTemplate.update("DELETE FROM projects");
         jdbcTemplate.update("DELETE FROM users");
+        resetDefaultBoardTemplates();
     }
 
     @Test
-    void myTaskBoardGroupedByProjectReturnsOnlyTasksAssignedToCurrentUser() throws Exception {
+    void myTaskBoardReturnsTemplateGroupsAndOnlyTasksAssignedToCurrentUser() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         List<Long> columns = columnIds(fixture.projectId());
         long mine = createTask(fixture.member().token(), fixture.projectId(), columns.get(0), fixture.member().id(), "Mine");
@@ -62,15 +63,28 @@ class MyTaskBoardApiTest {
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.groupBy").value("project"))
-            .andExpect(jsonPath("$.data.groups.length()").value(1))
-            .andExpect(jsonPath("$.data.groups[0].id").value(fixture.projectId()))
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(5))
+            .andExpect(jsonPath("$.data.groups[0].templateKey").value("BACKLOG"))
+            .andExpect(jsonPath("$.data.groups[1].templateKey").value("READY"))
+            .andExpect(jsonPath("$.data.groups[2].templateKey").value("IN_PROGRESS"))
+            .andExpect(jsonPath("$.data.groups[3].templateKey").value("TESTING"))
+            .andExpect(jsonPath("$.data.groups[4].templateKey").value("DONE"))
+            .andExpect(jsonPath("$.data.groups[0].name").value("\u5f85\u529e\uff08Backlog\uff09"))
             .andExpect(jsonPath("$.data.groups[0].tasks.length()").value(1))
-            .andExpect(jsonPath("$.data.groups[0].tasks[0].id").value(mine));
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].id").value(mine))
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].projectCode").value(fixture.projectCode()))
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].projectName").value("Delivery"))
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].projectColor").value(fixture.projectColor()))
+            .andExpect(jsonPath("$.data.groups[0].tasks[0].columnTemplateKey").value("BACKLOG"))
+            .andExpect(jsonPath("$.data.groups[1].tasks.length()").value(0))
+            .andExpect(jsonPath("$.data.groups[2].tasks.length()").value(0))
+            .andExpect(jsonPath("$.data.groups[3].tasks.length()").value(0))
+            .andExpect(jsonPath("$.data.groups[4].tasks.length()").value(0));
     }
 
     @Test
-    void myTaskBoardCanGroupByColumnState() throws Exception {
+    void myTaskBoardGroupsTasksByGlobalTemplateState() throws Exception {
         Fixture fixture = fixtureWithOwnerAndMember();
         List<Long> columns = columnIds(fixture.projectId());
         createTask(fixture.member().token(), fixture.projectId(), columns.get(0), fixture.member().id(), "Backlog mine");
@@ -81,10 +95,10 @@ class MyTaskBoardApiTest {
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.groupBy").value("column"))
-            .andExpect(jsonPath("$.data.groups.length()").value(2))
-            .andExpect(jsonPath("$.data.groups[?(@.name == '待办（Backlog）')].tasks[0].title").value("Backlog mine"))
-            .andExpect(jsonPath("$.data.groups[?(@.name == '进行中（In Progress）')].tasks[0].title").value("Progress mine"));
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(5))
+            .andExpect(jsonPath("$.data.groups[?(@.templateKey == 'BACKLOG')].tasks[0].title").value("Backlog mine"))
+            .andExpect(jsonPath("$.data.groups[?(@.templateKey == 'IN_PROGRESS')].tasks[0].title").value("Progress mine"));
     }
 
     @Test
@@ -106,7 +120,9 @@ class MyTaskBoardApiTest {
                 .queryParam("groupBy", "project")
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.groups.length()").value(0));
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(5))
+            .andExpect(jsonPath("$.data.groups[0].tasks.length()").value(0));
     }
 
     @Test
@@ -128,7 +144,9 @@ class MyTaskBoardApiTest {
                 .queryParam("groupBy", "project")
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.groups.length()").value(0));
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
+            .andExpect(jsonPath("$.data.groups.length()").value(5))
+            .andExpect(jsonPath("$.data.groups[0].tasks.length()").value(0));
     }
 
     @Test
@@ -152,6 +170,7 @@ class MyTaskBoardApiTest {
                 .queryParam("groupBy", "project")
                 .header("Authorization", "Bearer " + fixture.member().token()))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.groupBy").value("template"))
             .andExpect(jsonPath("$.data.groups[0].tasks[0].checklistDoneCount").value(1))
             .andExpect(jsonPath("$.data.groups[0].tasks[0].checklistTotalCount").value(2));
     }
@@ -159,9 +178,9 @@ class MyTaskBoardApiTest {
     private Fixture fixtureWithOwnerAndMember() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         RegisteredUser member = register("member", "Member");
-        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
-        addMember(owner.token(), projectId, member.id());
-        return new Fixture(owner, member, projectId);
+        CreatedProject project = createProject(owner.token(), "Delivery", "Delivery board");
+        addMember(owner.token(), project.id(), member.id());
+        return new Fixture(owner, member, project.id(), project.projectCode(), project.projectColor());
     }
 
     private long createTask(String token, long projectId, long columnId, long assigneeId, String title) throws Exception {
@@ -206,8 +225,10 @@ class MyTaskBoardApiTest {
         );
     }
 
-    private long createProject(String token, String name, String description) throws Exception {
+    private CreatedProject createProject(String token, String name, String description) throws Exception {
         int sequence = PROJECT_SEQUENCE.incrementAndGet();
+        String projectCode = "MY-" + sequence;
+        String projectColor = "#0f766e";
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -215,15 +236,60 @@ class MyTaskBoardApiTest {
                     {
                       "name": "%s",
                       "description": "%s",
-                      "projectCode": "MY-%d",
-                      "projectColor": "#0f766e"
+                      "projectCode": "%s",
+                      "projectColor": "%s"
                     }
-                    """.formatted(name, description, sequence)))
+                    """.formatted(name, description, projectCode, projectColor)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()
             .getContentAsString();
-        return objectMapper.readTree(response).path("data").path("id").asLong();
+        return new CreatedProject(
+            objectMapper.readTree(response).path("data").path("id").asLong(),
+            projectCode,
+            projectColor
+        );
+    }
+
+    private void resetDefaultBoardTemplates() {
+        jdbcTemplate.update("UPDATE board_column_templates SET sort_order = sort_order + 1000");
+        upsertTemplate("BACKLOG", "\u5f85\u529e", "Backlog", "#64748b", 0, null, false);
+        upsertTemplate("READY", "\u5c31\u7eea", "Ready", "#0ea5e9", 1, null, false);
+        upsertTemplate("IN_PROGRESS", "\u8fdb\u884c\u4e2d", "In Progress", "#f59e0b", 2, null, false);
+        upsertTemplate("TESTING", "\u6d4b\u8bd5", "Testing", "#8b5cf6", 3, null, false);
+        upsertTemplate("DONE", "\u5b8c\u6210", "Done", "#22c55e", 4, null, true);
+        jdbcTemplate.update("DELETE FROM board_column_templates WHERE template_key NOT IN ('BACKLOG', 'READY', 'IN_PROGRESS', 'TESTING', 'DONE')");
+    }
+
+    private void upsertTemplate(
+        String templateKey,
+        String nameZh,
+        String nameEn,
+        String color,
+        int sortOrder,
+        Integer wipLimit,
+        boolean done
+    ) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_column_templates (template_key, name_zh, name_en, color, sort_order, wip_limit, is_done)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              name_zh = VALUES(name_zh),
+              name_en = VALUES(name_en),
+              color = VALUES(color),
+              sort_order = VALUES(sort_order),
+              wip_limit = VALUES(wip_limit),
+              is_done = VALUES(is_done)
+            """,
+            templateKey,
+            nameZh,
+            nameEn,
+            color,
+            sortOrder,
+            wipLimit,
+            done
+        );
     }
 
     private void addMember(String ownerToken, long projectId, long userId) throws Exception {
@@ -261,6 +327,9 @@ class MyTaskBoardApiTest {
     private record RegisteredUser(long id, String token) {
     }
 
-    private record Fixture(RegisteredUser owner, RegisteredUser member, long projectId) {
+    private record CreatedProject(long id, String projectCode, String projectColor) {
+    }
+
+    private record Fixture(RegisteredUser owner, RegisteredUser member, long projectId, String projectCode, String projectColor) {
     }
 }
