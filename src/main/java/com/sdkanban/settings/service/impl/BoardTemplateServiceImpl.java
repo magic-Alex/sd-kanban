@@ -14,6 +14,7 @@ import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,19 +58,23 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
         validate(request);
         String templateKey = request.templateKey().trim();
         if (boardColumnTemplateRepository.existsByTemplateKey(templateKey)) {
-            throw BusinessException.conflict("TEMPLATE_KEY_EXISTS", "Board column template key already exists");
+            throw templateKeyExists();
         }
 
-        BoardColumnTemplate template = boardColumnTemplateRepository.save(new BoardColumnTemplate(
-            templateKey,
-            request.nameZh().trim(),
-            request.nameEn().trim(),
-            request.color().trim(),
-            nextSortOrder(),
-            request.wipLimit(),
-            Boolean.TRUE.equals(request.isDone())
-        ));
-        return BoardColumnTemplateResponse.from(template);
+        try {
+            BoardColumnTemplate template = boardColumnTemplateRepository.saveAndFlush(new BoardColumnTemplate(
+                templateKey,
+                request.nameZh().trim(),
+                request.nameEn().trim(),
+                request.color().trim(),
+                nextSortOrder(),
+                request.wipLimit(),
+                Boolean.TRUE.equals(request.isDone())
+            ));
+            return BoardColumnTemplateResponse.from(template);
+        } catch (DataIntegrityViolationException exception) {
+            throw templateKeyExists();
+        }
     }
 
     @Override
@@ -112,6 +117,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
             templatesByKey.get(templateKeys.get(index)).changeSortOrder(-(index + 1));
         }
         boardColumnTemplateRepository.flush();
+        stageProjectColumns(templateKeys);
 
         for (int index = 0; index < templateKeys.size(); index++) {
             BoardColumnTemplate template = templatesByKey.get(templateKeys.get(index));
@@ -196,6 +202,19 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
                 template.getWipLimit(),
                 template.isDone()
             ));
+    }
+
+    private void stageProjectColumns(List<String> templateKeys) {
+        for (int index = 0; index < templateKeys.size(); index++) {
+            int stagedSortOrder = -(index + 100_000);
+            boardColumnRepository.findByTemplateKey(templateKeys.get(index))
+                .forEach(column -> column.changeSortOrder(stagedSortOrder));
+        }
+        boardColumnRepository.flush();
+    }
+
+    private BusinessException templateKeyExists() {
+        return BusinessException.conflict("TEMPLATE_KEY_EXISTS", "Board column template key already exists");
     }
 
     private BusinessException invalidReorder() {

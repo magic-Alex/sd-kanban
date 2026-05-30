@@ -3,6 +3,7 @@ package com.sdkanban.common;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
@@ -40,7 +41,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
         ConstraintViolationException.class,
         MissingServletRequestParameterException.class,
-        MethodArgumentTypeMismatchException.class
+        MethodArgumentTypeMismatchException.class,
+        HttpMessageNotReadableException.class
     })
     ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception exception) {
         return ResponseEntity

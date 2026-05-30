@@ -188,6 +188,19 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void adminMalformedTemplateBodyReturnsBadRequest() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
     void deletingTemplateWithMatchingTasksIsBlocked() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
         RegisteredUser owner = register("owner", "Owner");
@@ -320,6 +333,32 @@ class BoardTemplateControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].templateKey").value("REVIEW"));
+    }
+
+    @Test
+    void adminReordersTemplatesAndProjectColumnsWithoutSortConstraintFailure() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+
+        mockMvc.perform(patch("/api/admin/board-templates/reorder")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "templateKeys": ["DONE", "TESTING", "IN_PROGRESS", "READY", "BACKLOG"]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data[0].templateKey").value("DONE"))
+            .andExpect(jsonPath("$.data[4].templateKey").value("BACKLOG"));
+
+        assertThat(jdbcTemplate.query(
+            "SELECT template_key FROM board_columns WHERE project_id = ? ORDER BY sort_order",
+            (rs, rowNum) -> rs.getString("template_key"),
+            projectId
+        )).containsExactly("DONE", "TESTING", "IN_PROGRESS", "READY", "BACKLOG");
     }
 
     @Test
