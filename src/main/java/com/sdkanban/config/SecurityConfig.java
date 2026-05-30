@@ -14,6 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -59,6 +62,8 @@ public class SecurityConfig {
                 .accessDeniedHandler(accessDeniedHandler))
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                .requestMatchers("/api/admin/board-templates", "/api/admin/board-templates/**")
+                    .access((authentication, context) -> new AuthorizationDecision(isAdmin(authentication.get())))
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .addFilterBefore(bearerTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
@@ -134,6 +139,15 @@ public class SecurityConfig {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), body);
+    }
+
+    private static boolean isAdmin(Authentication authentication) {
+        if (authentication == null
+            || !authentication.isAuthenticated()
+            || !(authentication.getPrincipal() instanceof User user)) {
+            throw new InsufficientAuthenticationException("Authentication required");
+        }
+        return user.isAdmin();
     }
 
     static class BearerTokenAuthenticationFilter extends OncePerRequestFilter {

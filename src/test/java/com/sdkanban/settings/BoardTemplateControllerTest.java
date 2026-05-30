@@ -159,6 +159,35 @@ class BoardTemplateControllerTest {
     }
 
     @Test
+    void ordinaryMemberGetsForbiddenBeforeMalformedTemplateBodiesAreRead() throws Exception {
+        RegisteredUser member = register("member", "Member");
+
+        mockMvc.perform(post("/api/admin/board-templates")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(patch("/api/admin/board-templates/{templateKey}", "DONE")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(patch("/api/admin/board-templates/reorder")
+                .header("Authorization", "Bearer " + member.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void deletingTemplateWithMatchingTasksIsBlocked() throws Exception {
         String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
         RegisteredUser owner = register("owner", "Owner");
@@ -172,6 +201,33 @@ class BoardTemplateControllerTest {
             """
             INSERT INTO tasks (project_id, column_id, creator_id, title, priority, task_type, sort_order)
             VALUES (?, ?, ?, 'Keep backlog', 'MEDIUM', 'TASK', 0)
+            """,
+            projectId,
+            backlogColumnId,
+            owner.id()
+        );
+
+        mockMvc.perform(delete("/api/admin/board-templates/{templateKey}", "BACKLOG")
+                .header("Authorization", "Bearer " + adminToken))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("TEMPLATE_COLUMN_NOT_EMPTY"));
+    }
+
+    @Test
+    void deletingTemplateWithOnlySoftDeletedTasksIsBlocked() throws Exception {
+        String adminToken = seedUserAndLogin("admin", "Admin", "ADMIN");
+        RegisteredUser owner = register("owner", "Owner");
+        long projectId = createProject(owner.token(), "Delivery", "Delivery board");
+        long backlogColumnId = jdbcTemplate.queryForObject(
+            "SELECT id FROM board_columns WHERE project_id = ? AND template_key = 'BACKLOG'",
+            Long.class,
+            projectId
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO tasks (project_id, column_id, creator_id, title, priority, task_type, sort_order, is_deleted)
+            VALUES (?, ?, ?, 'Soft deleted backlog', 'MEDIUM', 'TASK', 0, true)
             """,
             projectId,
             backlogColumnId,

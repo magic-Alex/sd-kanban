@@ -30,7 +30,6 @@ public interface BoardColumnRepository extends JpaRepository<BoardColumn, Long> 
         FROM tasks task
         JOIN board_columns column_table ON column_table.id = task.column_id
         WHERE column_table.template_key = :templateKey
-          AND task.is_deleted = false
         """, nativeQuery = true)
     long countTasksByTemplateKey(@Param("templateKey") String templateKey);
 }
