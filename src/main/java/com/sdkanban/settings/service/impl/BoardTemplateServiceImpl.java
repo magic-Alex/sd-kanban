@@ -3,6 +3,7 @@ package com.sdkanban.settings.service.impl;
 import com.sdkanban.board.entity.BoardColumn;
 import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
+import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.settings.dto.BoardColumnTemplateResponse;
 import com.sdkanban.settings.dto.CreateBoardColumnTemplateRequest;
@@ -15,6 +16,7 @@ import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Conditional(ProjectPersistenceAvailableCondition.class)
 public class BoardTemplateServiceImpl implements BoardTemplateService {
     private final BoardColumnTemplateRepository boardColumnTemplateRepository;
     private final BoardColumnRepository boardColumnRepository;
@@ -151,9 +154,9 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<BoardColumn> createProjectColumns(Long projectId) {
-        return boardColumnTemplateRepository.findByOrderBySortOrderAscIdAsc().stream()
+        List<BoardColumn> columns = boardColumnTemplateRepository.findByOrderBySortOrderAscIdAsc().stream()
             .map(template -> new BoardColumn(
                 projectId,
                 template.getTemplateKey(),
@@ -164,6 +167,7 @@ public class BoardTemplateServiceImpl implements BoardTemplateService {
                 template.isDone()
             ))
             .toList();
+        return boardColumnRepository.saveAll(columns);
     }
 
     private void requireAdmin(Long currentUserId) {

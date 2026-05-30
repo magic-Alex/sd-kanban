@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -21,6 +23,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class NotificationControllerTest {
+    private static final AtomicInteger PROJECT_SEQUENCE = new AtomicInteger();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -207,15 +211,18 @@ class NotificationControllerTest {
     }
 
     private long createProject(String token, String name, String description) throws Exception {
+        int sequence = PROJECT_SEQUENCE.incrementAndGet();
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "name": "%s",
-                      "description": "%s"
+                      "description": "%s",
+                      "projectCode": "NOTE-%d",
+                      "projectColor": "#0f766e"
                     }
-                    """.formatted(name, description)))
+                    """.formatted(name, description, sequence)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

@@ -2,6 +2,7 @@ package com.sdkanban.project;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -32,6 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class ProjectControllerTest {
+    private static final AtomicInteger PROJECT_SEQUENCE = new AtomicInteger();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -56,6 +60,113 @@ class ProjectControllerTest {
         jdbcTemplate.update("DELETE FROM project_members");
         jdbcTemplate.update("DELETE FROM projects");
         jdbcTemplate.update("DELETE FROM users");
+        resetDefaultBoardTemplates();
+    }
+
+    @AfterEach
+    void resetTemplatesAfterTest() {
+        resetDefaultBoardTemplates();
+    }
+
+    @Test
+    void creatingProjectReturnsNormalizedProjectCodeAndProjectColor() throws Exception {
+        RegisteredUser alice = register("alice", "Alice");
+
+        String response = mockMvc.perform(post("/api/projects")
+                .header("Authorization", "Bearer " + alice.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Roadmap",
+                      "description": "Plan the release",
+                      "projectCode": "rdm-42",
+                      "projectColor": "#1a2B3c"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.projectCode").value("RDM-42"))
+            .andExpect(jsonPath("$.data.projectColor").value("#1a2B3c"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        long projectId = objectMapper.readTree(response).path("data").path("id").asLong();
+        var stored = jdbcTemplate.queryForMap(
+            "SELECT project_code, project_color FROM projects WHERE id = ?",
+            projectId
+        );
+        assertThat(stored.get("project_code")).isEqualTo("RDM-42");
+        assertThat(stored.get("project_color")).isEqualTo("#1a2B3c");
+    }
+
+    @Test
+    void creatingProjectRejectsDuplicateProjectCode() throws Exception {
+        RegisteredUser alice = register("alice", "Alice");
+
+        mockMvc.perform(post("/api/projects")
+                .header("Authorization", "Bearer " + alice.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Roadmap",
+                      "projectCode": "shared-code",
+                      "projectColor": "#123456"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/projects")
+                .header("Authorization", "Bearer " + alice.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Second Roadmap",
+                      "projectCode": "SHARED-CODE",
+                      "projectColor": "#654321"
+                    }
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.code").value("PROJECT_CODE_EXISTS"));
+    }
+
+    @Test
+    void creatingProjectUsesCurrentGlobalBoardTemplateColumns() throws Exception {
+        RegisteredUser alice = register("alice", "Alice");
+        jdbcTemplate.update(
+            """
+            UPDATE board_column_templates
+            SET name_zh = '已完成', color = '#16a34a', wip_limit = 8
+            WHERE template_key = 'DONE'
+            """
+        );
+
+        long projectId = createProject(alice.token(), "Roadmap", "Plan the release");
+
+        List<String> labels = jdbcTemplate.query(
+            "SELECT name FROM board_columns WHERE project_id = ? ORDER BY sort_order",
+            (rs, rowNum) -> rs.getString("name"),
+            projectId
+        );
+        assertThat(labels).containsExactly(
+            "待办（Backlog）",
+            "就绪（Ready）",
+            "进行中（In Progress）",
+            "测试（Testing）",
+            "已完成（Done）"
+        );
+        assertThat(jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM board_columns
+            WHERE project_id = ? AND template_key = 'DONE'
+              AND color = '#16a34a' AND sort_order = 4
+              AND wip_limit = 8 AND is_done = true
+            """,
+            Integer.class,
+            projectId
+        )).isEqualTo(1);
     }
 
     @Test
@@ -399,21 +510,65 @@ class ProjectControllerTest {
     }
 
     private long createProject(String token, String name, String description) throws Exception {
+        int sequence = PROJECT_SEQUENCE.incrementAndGet();
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "name": "%s",
-                      "description": "%s"
+                      "description": "%s",
+                      "projectCode": "PRJ-%d",
+                      "projectColor": "#0f766e"
                     }
-                    """.formatted(name, description)))
+                    """.formatted(name, description, sequence)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()
             .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private void resetDefaultBoardTemplates() {
+        jdbcTemplate.update("UPDATE board_column_templates SET sort_order = sort_order + 1000");
+        upsertTemplate("BACKLOG", "待办", "Backlog", "#64748b", 0, null, false);
+        upsertTemplate("READY", "就绪", "Ready", "#0ea5e9", 1, null, false);
+        upsertTemplate("IN_PROGRESS", "进行中", "In Progress", "#f59e0b", 2, null, false);
+        upsertTemplate("TESTING", "测试", "Testing", "#8b5cf6", 3, null, false);
+        upsertTemplate("DONE", "完成", "Done", "#22c55e", 4, null, true);
+        jdbcTemplate.update("DELETE FROM board_column_templates WHERE template_key NOT IN ('BACKLOG', 'READY', 'IN_PROGRESS', 'TESTING', 'DONE')");
+    }
+
+    private void upsertTemplate(
+        String templateKey,
+        String nameZh,
+        String nameEn,
+        String color,
+        int sortOrder,
+        Integer wipLimit,
+        boolean done
+    ) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_column_templates (template_key, name_zh, name_en, color, sort_order, wip_limit, is_done)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              name_zh = VALUES(name_zh),
+              name_en = VALUES(name_en),
+              color = VALUES(color),
+              sort_order = VALUES(sort_order),
+              wip_limit = VALUES(wip_limit),
+              is_done = VALUES(is_done)
+            """,
+            templateKey,
+            nameZh,
+            nameEn,
+            color,
+            sortOrder,
+            wipLimit,
+            done
+        );
     }
 
     private void addMember(String ownerToken, long projectId, long userId) throws Exception {

@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,6 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class MyTaskBoardApiTest {
+    private static final AtomicInteger PROJECT_SEQUENCE = new AtomicInteger();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -80,8 +83,8 @@ class MyTaskBoardApiTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.groupBy").value("column"))
             .andExpect(jsonPath("$.data.groups.length()").value(2))
-            .andExpect(jsonPath("$.data.groups[?(@.name == 'Backlog')].tasks[0].title").value("Backlog mine"))
-            .andExpect(jsonPath("$.data.groups[?(@.name == 'In Progress')].tasks[0].title").value("Progress mine"));
+            .andExpect(jsonPath("$.data.groups[?(@.name == '待办（Backlog）')].tasks[0].title").value("Backlog mine"))
+            .andExpect(jsonPath("$.data.groups[?(@.name == '进行中（In Progress）')].tasks[0].title").value("Progress mine"));
     }
 
     @Test
@@ -204,15 +207,18 @@ class MyTaskBoardApiTest {
     }
 
     private long createProject(String token, String name, String description) throws Exception {
+        int sequence = PROJECT_SEQUENCE.incrementAndGet();
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "name": "%s",
-                      "description": "%s"
+                      "description": "%s",
+                      "projectCode": "MY-%d",
+                      "projectColor": "#0f766e"
                     }
-                    """.formatted(name, description)))
+                    """.formatted(name, description, sequence)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 public record ProjectResponse(
     Long id,
+    String projectCode,
+    String projectColor,
     String name,
     String description,
     UserSummary owner,

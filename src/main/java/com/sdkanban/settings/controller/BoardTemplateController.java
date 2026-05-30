@@ -1,12 +1,14 @@
 package com.sdkanban.settings.controller;
 
 import com.sdkanban.common.ApiResponse;
+import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.settings.dto.BoardColumnTemplateResponse;
 import com.sdkanban.settings.dto.CreateBoardColumnTemplateRequest;
 import com.sdkanban.settings.dto.ReorderBoardColumnTemplatesRequest;
 import com.sdkanban.settings.dto.UpdateBoardColumnTemplateRequest;
 import com.sdkanban.settings.service.BoardTemplateService;
 import com.sdkanban.user.entity.User;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +24,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/board-templates")
+@Conditional(ProjectPersistenceAvailableCondition.class)
 public class BoardTemplateController {
     private final BoardTemplateService boardTemplateService;
 

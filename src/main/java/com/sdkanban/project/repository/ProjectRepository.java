@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
+    boolean existsByProjectCode(String projectCode);
+
     @Query("""
         select distinct project
         from Project project

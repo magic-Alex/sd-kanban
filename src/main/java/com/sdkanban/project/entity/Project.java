@@ -24,6 +24,12 @@ public class Project {
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
+    @Column(name = "project_code", nullable = false, length = 40)
+    private String projectCode;
+
+    @Column(name = "project_color", nullable = false, length = 20)
+    private String projectColor;
+
     @Column(nullable = false, length = 120)
     private String name;
 
@@ -44,9 +50,18 @@ public class Project {
     protected Project() {
     }
 
-    public Project(Long ownerId, Long creatorId, String name, String description) {
+    public Project(
+        Long ownerId,
+        Long creatorId,
+        String projectCode,
+        String projectColor,
+        String name,
+        String description
+    ) {
         this.ownerId = ownerId;
         this.creatorId = creatorId;
+        this.projectCode = projectCode;
+        this.projectColor = projectColor;
         this.name = name;
         this.description = description;
     }
@@ -65,6 +80,14 @@ public class Project {
 
     public Long getCreatorId() {
         return creatorId;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public String getProjectColor() {
+        return projectColor;
     }
 
     public String getName() {

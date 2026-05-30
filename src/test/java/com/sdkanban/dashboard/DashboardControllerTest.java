@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -23,6 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class DashboardControllerTest {
+    private static final AtomicInteger PROJECT_SEQUENCE = new AtomicInteger();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -306,15 +309,18 @@ class DashboardControllerTest {
     }
 
     private long createProject(String token, String name, String description) throws Exception {
+        int sequence = PROJECT_SEQUENCE.incrementAndGet();
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "name": "%s",
-                      "description": "%s"
+                      "description": "%s",
+                      "projectCode": "DASH-%d",
+                      "projectColor": "#0f766e"
                     }
-                    """.formatted(name, description)))
+                    """.formatted(name, description, sequence)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()

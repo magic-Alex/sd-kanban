@@ -1,7 +1,5 @@
 package com.sdkanban.project.service.impl;
 
-import com.sdkanban.board.entity.BoardColumn;
-import com.sdkanban.board.repository.BoardColumnRepository;
 import com.sdkanban.common.BusinessException;
 import com.sdkanban.project.dto.AddProjectMemberRequest;
 import com.sdkanban.project.dto.CreateProjectRequest;
@@ -15,6 +13,7 @@ import com.sdkanban.project.repository.ProjectPersistenceAvailableCondition;
 import com.sdkanban.project.repository.ProjectMemberRepository;
 import com.sdkanban.project.repository.ProjectRepository;
 import com.sdkanban.project.service.ProjectService;
+import com.sdkanban.settings.service.BoardTemplateService;
 import com.sdkanban.user.dto.UserSummary;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
@@ -25,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @Conditional(ProjectPersistenceAvailableCondition.class)
@@ -32,34 +32,45 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
-    private final BoardColumnRepository boardColumnRepository;
+    private final BoardTemplateService boardTemplateService;
 
     public ProjectServiceImpl(
         ProjectRepository projectRepository,
         ProjectMemberRepository projectMemberRepository,
         UserRepository userRepository,
-        BoardColumnRepository boardColumnRepository
+        BoardTemplateService boardTemplateService
     ) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
-        this.boardColumnRepository = boardColumnRepository;
+        this.boardTemplateService = boardTemplateService;
     }
 
     @Override
     @Transactional
     public ProjectResponse create(CreateProjectRequest request, Long currentUserId) {
         User creator = requireUser(currentUserId);
-        Project project = projectRepository.save(new Project(
-            creator.getId(),
-            creator.getId(),
-            request.name().trim(),
-            normalizeDescription(request.description())
-        ));
-        projectMemberRepository.save(new ProjectMember(project.getId(), creator.getId(), ProjectMember.ROLE_OWNER));
-        initializeDefaultColumns(project.getId());
+        String projectCode = normalizeProjectCode(request.projectCode());
+        if (projectRepository.existsByProjectCode(projectCode)) {
+            throw projectCodeExists();
+        }
 
-        return toProjectResponse(project);
+        try {
+            Project project = projectRepository.saveAndFlush(new Project(
+                creator.getId(),
+                creator.getId(),
+                projectCode,
+                request.projectColor().trim(),
+                request.name().trim(),
+                normalizeDescription(request.description())
+            ));
+            projectMemberRepository.save(new ProjectMember(project.getId(), creator.getId(), ProjectMember.ROLE_OWNER));
+            boardTemplateService.createProjectColumns(project.getId());
+
+            return toProjectResponse(project);
+        } catch (DataIntegrityViolationException exception) {
+            throw projectCodeExists();
+        }
     }
 
     @Override
@@ -197,19 +208,11 @@ public class ProjectServiceImpl implements ProjectService {
             .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "User not found"));
     }
 
-    private void initializeDefaultColumns(Long projectId) {
-        boardColumnRepository.saveAll(List.of(
-            new BoardColumn(projectId, "BACKLOG", "Backlog", "#64748b", 0, null, false),
-            new BoardColumn(projectId, "READY", "Ready", "#0ea5e9", 1, null, false),
-            new BoardColumn(projectId, "IN_PROGRESS", "In Progress", "#f59e0b", 2, null, false),
-            new BoardColumn(projectId, "TESTING", "Testing", "#8b5cf6", 3, null, false),
-            new BoardColumn(projectId, "DONE", "Done", "#22c55e", 4, null, true)
-        ));
-    }
-
     private ProjectResponse toProjectResponse(Project project) {
         return new ProjectResponse(
             project.getId(),
+            project.getProjectCode(),
+            project.getProjectColor(),
             project.getName(),
             project.getDescription(),
             UserSummary.from(requireUser(project.getOwnerId())),
@@ -234,5 +237,13 @@ public class ProjectServiceImpl implements ProjectService {
             return null;
         }
         return description.trim();
+    }
+
+    private String normalizeProjectCode(String projectCode) {
+        return projectCode.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private BusinessException projectCodeExists() {
+        return BusinessException.conflict("PROJECT_CODE_EXISTS", "Project code already exists");
     }
 }

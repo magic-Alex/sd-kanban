@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -24,6 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class BoardColumnControllerTest {
+    private static final AtomicInteger PROJECT_SEQUENCE = new AtomicInteger();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -45,6 +48,7 @@ class BoardColumnControllerTest {
         jdbcTemplate.update("DELETE FROM project_members");
         jdbcTemplate.update("DELETE FROM projects");
         jdbcTemplate.update("DELETE FROM users");
+        resetDefaultBoardTemplates();
     }
 
     @Test
@@ -58,14 +62,20 @@ class BoardColumnControllerTest {
             (rs, rowNum) -> rs.getString("name"),
             projectId
         );
-        assertThat(names).containsExactly("Backlog", "Ready", "In Progress", "Testing", "Done");
+        assertThat(names).containsExactly(
+            "待办（Backlog）",
+            "就绪（Ready）",
+            "进行中（In Progress）",
+            "测试（Testing）",
+            "完成（Done）"
+        );
 
         mockMvc.perform(get("/api/projects/{projectId}/columns", projectId)
                 .header("Authorization", "Bearer " + owner.token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.length()").value(5))
-            .andExpect(jsonPath("$.data[0].name").value("Backlog"))
+            .andExpect(jsonPath("$.data[0].name").value("待办（Backlog）"))
             .andExpect(jsonPath("$.data[4].isDone").value(true));
     }
 
@@ -144,21 +154,65 @@ class BoardColumnControllerTest {
     }
 
     private long createProject(String token, String name, String description) throws Exception {
+        int sequence = PROJECT_SEQUENCE.incrementAndGet();
         String response = mockMvc.perform(post("/api/projects")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "name": "%s",
-                      "description": "%s"
+                      "description": "%s",
+                      "projectCode": "COL-%d",
+                      "projectColor": "#0f766e"
                     }
-                    """.formatted(name, description)))
+                    """.formatted(name, description, sequence)))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()
             .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private void resetDefaultBoardTemplates() {
+        jdbcTemplate.update("UPDATE board_column_templates SET sort_order = sort_order + 1000");
+        upsertTemplate("BACKLOG", "待办", "Backlog", "#64748b", 0, null, false);
+        upsertTemplate("READY", "就绪", "Ready", "#0ea5e9", 1, null, false);
+        upsertTemplate("IN_PROGRESS", "进行中", "In Progress", "#f59e0b", 2, null, false);
+        upsertTemplate("TESTING", "测试", "Testing", "#8b5cf6", 3, null, false);
+        upsertTemplate("DONE", "完成", "Done", "#22c55e", 4, null, true);
+        jdbcTemplate.update("DELETE FROM board_column_templates WHERE template_key NOT IN ('BACKLOG', 'READY', 'IN_PROGRESS', 'TESTING', 'DONE')");
+    }
+
+    private void upsertTemplate(
+        String templateKey,
+        String nameZh,
+        String nameEn,
+        String color,
+        int sortOrder,
+        Integer wipLimit,
+        boolean done
+    ) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO board_column_templates (template_key, name_zh, name_en, color, sort_order, wip_limit, is_done)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              name_zh = VALUES(name_zh),
+              name_en = VALUES(name_en),
+              color = VALUES(color),
+              sort_order = VALUES(sort_order),
+              wip_limit = VALUES(wip_limit),
+              is_done = VALUES(is_done)
+            """,
+            templateKey,
+            nameZh,
+            nameEn,
+            color,
+            sortOrder,
+            wipLimit,
+            done
+        );
     }
 
     private void addMember(String ownerToken, long projectId, long userId) throws Exception {
