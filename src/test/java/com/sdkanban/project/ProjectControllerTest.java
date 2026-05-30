@@ -262,6 +262,25 @@ class ProjectControllerTest {
     }
 
     @Test
+    void projectMemberListReturnsRolesAccountsAndJoinedAt() throws Exception {
+        RegisteredUser owner = register("owner", "Owner");
+        RegisteredUser member = register("member", "Member");
+        long projectId = createProject(owner.token(), "Team Board", "Shared work");
+        addMember(owner.token(), projectId, member.id());
+
+        mockMvc.perform(get("/api/projects/{projectId}/members", projectId)
+                .header("Authorization", "Bearer " + owner.token()))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[?(@.user.account == 'owner')].role").value("owner"))
+            .andExpect(jsonPath("$.data[?(@.user.account == 'member')].role").value("member"))
+            .andExpect(jsonPath("$.data[?(@.user.account == 'owner')].joinedAt").isNotEmpty())
+            .andExpect(jsonPath("$.data[?(@.user.account == 'member')].joinedAt").isNotEmpty());
+    }
+
+    @Test
     void ordinaryMemberCannotTransferProjectOwner() throws Exception {
         RegisteredUser owner = register("owner", "Owner");
         RegisteredUser member = register("member", "Member");
