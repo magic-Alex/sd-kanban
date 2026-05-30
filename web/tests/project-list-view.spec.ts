@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import type { VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ProjectListView from '../src/views/ProjectListView.vue'
 import { createProject, fetchProjects } from '../src/api/projects'
@@ -61,6 +62,25 @@ const mountOptions = {
   },
 }
 
+function projectFormControls(wrapper: VueWrapper) {
+  return {
+    form: wrapper.get('form.project-form'),
+    name: wrapper.get('input[required][maxlength="120"]'),
+    code: wrapper.get('input[autocomplete="off"]'),
+    color: wrapper.get('input[type="color"]'),
+    description: wrapper.get('textarea'),
+  }
+}
+
+async function fillProjectForm(wrapper: VueWrapper) {
+  const controls = projectFormControls(wrapper)
+  await controls.name.setValue('Platform')
+  await controls.code.setValue('PF')
+  await controls.color.setValue('#22c55e')
+  await controls.description.setValue('Build platform work')
+  return controls
+}
+
 describe('ProjectListView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
@@ -76,14 +96,8 @@ describe('ProjectListView', () => {
     const wrapper = mount(ProjectListView, mountOptions)
     await flushPromises()
 
-    expect(wrapper.get('[aria-label="项目编号"]').exists()).toBe(true)
-    expect(wrapper.get('[aria-label="项目颜色"]').exists()).toBe(true)
-
-    await wrapper.get('[aria-label="项目名称"]').setValue('Platform')
-    await wrapper.get('[aria-label="项目编号"]').setValue('PF')
-    await wrapper.get('[aria-label="项目颜色"]').setValue('#22c55e')
-    await wrapper.get('[aria-label="项目描述"]').setValue('Build platform work')
-    await wrapper.get('form[aria-label="新建项目表单"]').trigger('submit')
+    const controls = await fillProjectForm(wrapper)
+    await controls.form.trigger('submit')
     await flushPromises()
 
     expect(createProject).toHaveBeenCalledWith({
@@ -93,18 +107,36 @@ describe('ProjectListView', () => {
       description: 'Build platform work',
     })
     expect(mockedRouter.push).toHaveBeenCalledWith('/projects/8')
-    expect((wrapper.get('input[required][maxlength="120"]').element as HTMLInputElement).value).toBe('')
-    expect((wrapper.get('input[autocomplete="off"]').element as HTMLInputElement).value).toBe('')
-    expect((wrapper.get('input[type="color"]').element as HTMLInputElement).value).toBe('#0ea5e9')
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
+    expect((controls.name.element as HTMLInputElement).value).toBe('')
+    expect((controls.code.element as HTMLInputElement).value).toBe('')
+    expect((controls.color.element as HTMLInputElement).value).toBe('#0ea5e9')
+    expect((controls.description.element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('shows project code and color swatch in the project list', async () => {
+  it('shows create failures and preserves entered form values', async () => {
+    vi.mocked(createProject).mockRejectedValueOnce(new Error('duplicate project code'))
+    const wrapper = mount(ProjectListView, mountOptions)
+    await flushPromises()
+
+    const controls = await fillProjectForm(wrapper)
+    await controls.form.trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('.form-error').text()).not.toBe('')
+    expect(mockedRouter.push).not.toHaveBeenCalled()
+    expect((controls.name.element as HTMLInputElement).value).toBe('Platform')
+    expect((controls.code.element as HTMLInputElement).value).toBe('PF')
+    expect((controls.color.element as HTMLInputElement).value).toBe('#22c55e')
+    expect((controls.description.element as HTMLTextAreaElement).value).toBe('Build platform work')
+  })
+
+  it('shows project code and a decorative color swatch in the project list', async () => {
     const wrapper = mount(ProjectListView, mountOptions)
     await flushPromises()
 
     expect(wrapper.text()).toContain('OPS')
-    const swatch = wrapper.get('[aria-label="项目颜色 #0ea5e9"]')
+    const swatch = wrapper.get('.project-color-swatch')
     expect((swatch.element as HTMLElement).style.backgroundColor).toBe('#0ea5e9')
+    expect(swatch.attributes('aria-hidden')).toBe('true')
   })
 })

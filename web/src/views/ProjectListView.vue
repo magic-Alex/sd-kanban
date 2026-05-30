@@ -31,6 +31,8 @@ async function submit() {
     form.name = ''
     form.description = ''
     await router.push(`/projects/${project.id}`)
+  } catch (error) {
+    // The store owns the user-facing create error; preserve form values.
   } finally {
     creating.value = false
   }
@@ -74,6 +76,7 @@ async function submit() {
         <button class="primary-button" type="submit" :disabled="creating">
           {{ creating ? '创建中' : '创建项目' }}
         </button>
+        <p v-if="projects.createError" class="form-error">{{ projects.createError }}</p>
       </form>
 
       <section class="project-list" aria-label="项目列表">
@@ -90,7 +93,7 @@ async function submit() {
               <i
                 class="project-color-swatch"
                 :style="{ backgroundColor: project.projectColor }"
-                :aria-label="`项目颜色 ${project.projectColor}`"
+                aria-hidden="true"
               />
               {{ project.name }}
             </strong>

@@ -8,6 +8,7 @@ const props = defineProps<{
   ownerId: number
   currentUserId?: number | null
   loading?: boolean
+  actionLoading?: boolean
   error?: string | null
 }>()
 
@@ -25,6 +26,7 @@ const memberIds = computed(() => new Set(props.members.map((member) => member.us
 const availableCandidates = computed(() => (
   candidates.value.filter((candidate) => !memberIds.value.has(candidate.id))
 ))
+const canManageMembers = computed(() => props.currentUserId === props.ownerId)
 function displayName(user: { nickname: string, account: string }) {
   return user.nickname ? `${user.nickname}（${user.account}）` : user.account
 }
@@ -66,7 +68,12 @@ async function searchUsers() {
       </div>
     </div>
 
-    <form class="member-search-form" aria-label="搜索项目成员" @submit.prevent="searchUsers">
+    <form
+      v-if="canManageMembers"
+      class="member-search-form"
+      aria-label="搜索项目成员"
+      @submit.prevent="searchUsers"
+    >
       <label>
         搜索用户
         <input
@@ -76,28 +83,29 @@ async function searchUsers() {
           maxlength="80"
         />
       </label>
-      <button class="secondary-button" type="submit" :disabled="searching || !keyword.trim()">
+      <button class="secondary-button" type="submit" :disabled="searching || actionLoading || !keyword.trim()">
         {{ searching ? '搜索中' : '搜索' }}
       </button>
     </form>
 
     <p v-if="searchError" class="form-error">{{ searchError }}</p>
-    <p v-else-if="!keyword.trim()" class="muted">输入昵称或账号后搜索可添加成员。</p>
+    <p v-else-if="canManageMembers && !keyword.trim()" class="muted">输入昵称或账号后搜索可添加成员。</p>
 
-    <div v-if="availableCandidates.length" class="member-candidates" aria-label="候选用户">
+    <div v-if="canManageMembers && availableCandidates.length" class="member-candidates" aria-label="候选用户">
       <button
         v-for="candidate in availableCandidates"
         :key="candidate.id"
         class="candidate-button"
         type="button"
         :aria-label="`添加 ${candidate.nickname || candidate.account}`"
+        :disabled="actionLoading"
         @click="emit('addMember', candidate.id)"
       >
         <span>{{ displayName(candidate) }}</span>
         <small>添加</small>
       </button>
     </div>
-    <p v-else-if="keyword.trim() && !searching && !searchError" class="muted">没有可添加的匹配用户。</p>
+    <p v-else-if="canManageMembers && keyword.trim() && !searching && !searchError" class="muted">没有可添加的匹配用户。</p>
 
     <p v-if="loading" class="muted">正在加载成员...</p>
     <p v-if="error" class="form-error">{{ error }}</p>
@@ -113,10 +121,11 @@ async function searchUsers() {
         </span>
         <span class="member-joined">{{ formatJoinedAt(member.joinedAt) }}</span>
         <button
-          v-if="member.user.id !== ownerId"
+          v-if="canManageMembers && member.user.id !== ownerId"
           class="danger-button"
           type="button"
           :aria-label="`移除 ${member.user.nickname || member.user.account}`"
+          :disabled="actionLoading"
           @click="emit('removeMember', member.user.id)"
         >
           移除

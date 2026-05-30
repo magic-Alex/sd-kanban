@@ -19,12 +19,15 @@ export const useProjectsStore = defineStore('projects', {
     loading: false,
     membersLoading: false,
     error: null as string | null,
+    createError: null as string | null,
+    memberActionLoading: false,
     memberActionError: null as string | null,
   }),
   actions: {
     async fetchProjects() {
       this.loading = true
       this.error = null
+      this.createError = null
       try {
         this.projects = await fetchProjects()
       } catch (error) {
@@ -50,9 +53,15 @@ export const useProjectsStore = defineStore('projects', {
       }
     },
     async createProject(request: CreateProjectRequest) {
-      const project = await createProject(request)
-      this.projects = [project, ...this.projects]
-      return project
+      this.createError = null
+      try {
+        const project = await createProject(request)
+        this.projects = [project, ...this.projects]
+        return project
+      } catch (error) {
+        this.createError = '项目创建失败，请检查项目编号是否重复或表单内容是否有效'
+        throw error
+      }
     },
     async fetchMembers(projectId: number | string) {
       this.membersLoading = true
@@ -68,14 +77,19 @@ export const useProjectsStore = defineStore('projects', {
       }
     },
     async addMember(projectId: number | string, userId: number) {
+      if (this.memberActionLoading) {
+        return undefined
+      }
       this.memberActionError = null
+      const existed = this.members.some((item) => item.user.id === userId)
+      if (existed) {
+        return this.members.find((item) => item.user.id === userId)
+      }
+      this.memberActionLoading = true
       try {
-        const existed = this.members.some((item) => item.user.id === userId)
         const member = await addProjectMember(projectId, userId)
-        if (!existed) {
-          this.members = [...this.members, member]
-        }
-        if (this.currentProject && !existed) {
+        this.members = [...this.members, member]
+        if (this.currentProject) {
           this.currentProject = {
             ...this.currentProject,
             memberCount: this.currentProject.memberCount + 1,
@@ -85,14 +99,23 @@ export const useProjectsStore = defineStore('projects', {
       } catch (error) {
         this.memberActionError = '项目成员添加失败'
         throw error
+      } finally {
+        this.memberActionLoading = false
       }
     },
     async removeMember(projectId: number | string, userId: number | string) {
+      if (this.memberActionLoading) {
+        return
+      }
       this.memberActionError = null
       const numericUserId = Number(userId)
+      const existed = this.members.some((member) => member.user.id === numericUserId)
+      if (!existed) {
+        return
+      }
+      this.memberActionLoading = true
       try {
         await removeProjectMember(projectId, userId)
-        const existed = this.members.some((member) => member.user.id === numericUserId)
         this.members = this.members.filter((member) => member.user.id !== numericUserId)
         if (this.currentProject && existed) {
           this.currentProject = {
@@ -103,6 +126,8 @@ export const useProjectsStore = defineStore('projects', {
       } catch (error) {
         this.memberActionError = '项目成员移除失败'
         throw error
+      } finally {
+        this.memberActionLoading = false
       }
     },
   },

@@ -24,11 +24,17 @@ async function loadProjectContext() {
 }
 
 async function addMember(userId: number) {
+  if (projects.memberActionLoading) {
+    return
+  }
   await projects.addMember(projectId.value, userId)
   await projects.fetchMembers(projectId.value)
 }
 
 async function removeMember(userId: number) {
+  if (projects.memberActionLoading) {
+    return
+  }
   await projects.removeMember(projectId.value, userId)
   await projects.fetchMembers(projectId.value)
 }
@@ -56,7 +62,7 @@ async function removeMember(userId: number) {
             <i
               class="project-color-swatch"
               :style="{ backgroundColor: projects.currentProject.projectColor }"
-              :aria-label="`项目颜色 ${projects.currentProject.projectColor}`"
+              aria-hidden="true"
             />
             {{ projects.currentProject.projectColor }}
           </span>
@@ -78,6 +84,7 @@ async function removeMember(userId: number) {
         :owner-id="ownerId"
         :current-user-id="currentUserId"
         :loading="projects.membersLoading"
+        :action-loading="projects.memberActionLoading"
         :error="projects.memberActionError"
         @add-member="addMember"
         @remove-member="removeMember"
