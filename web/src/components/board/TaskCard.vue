@@ -29,13 +29,20 @@ const isOverdue = computed(() => {
   <article class="task-card" draggable="true" @dragstart="startDrag" @click="emit('open', task.id)">
     <div class="task-card-main">
       <strong>{{ task.title }}</strong>
-      <span>{{ task.taskType }} · {{ task.priority }}</span>
-      <span>{{ task.assignee?.nickname ?? '未分配' }}</span>
+      <div class="task-card-badges">
+        <span class="task-type">{{ task.taskType }}</span>
+        <span class="task-priority" :class="`priority-${task.priority.toLowerCase()}`">
+          {{ task.priority === 'HIGH' ? '高' : task.priority === 'MEDIUM' ? '中' : task.priority === 'LOW' ? '低' : task.priority }}
+        </span>
+      </div>
     </div>
     <div class="task-card-meta">
       <small v-if="task.storyPoints !== null">{{ task.storyPoints }} SP</small>
-      <small v-if="task.dueDate" :class="{ overdue: isOverdue }">{{ task.dueDate }}</small>
-      <small v-if="task.checklistTotalCount > 0">清单 {{ task.checklistDoneCount }}/{{ task.checklistTotalCount }}</small>
+      <small class="task-assignee">{{ task.assignee?.nickname ?? '未分配' }}</small>
+      <small v-if="task.dueDate" class="task-due-date" :class="{ overdue: isOverdue }">{{ task.dueDate }}</small>
+      <small v-if="task.checklistTotalCount > 0" class="task-checklist-progress">
+        清单 {{ task.checklistDoneCount }}/{{ task.checklistTotalCount }}
+      </small>
     </div>
   </article>
 </template>

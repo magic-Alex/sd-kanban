@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginApi, type LoginRequest, type UserSummary } from '../api/auth'
+import { fetchCurrentUser, login as loginApi, type LoginRequest, type UserSummary } from '../api/auth'
 
 const TOKEN_KEY = 'sd-kanban-token'
 const USER_KEY = 'sd-kanban-user'
@@ -26,6 +26,7 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.token),
+    isAdmin: (state) => state.user?.role === 'ADMIN',
   },
   actions: {
     async login(request: LoginRequest) {
@@ -50,6 +51,18 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
+    },
+    async refreshCurrentUser() {
+      if (!this.token) {
+        return
+      }
+      try {
+        const user = await fetchCurrentUser()
+        this.user = user
+        localStorage.setItem(USER_KEY, JSON.stringify(user))
+      } catch (error) {
+        this.logout()
+      }
     },
   },
 })

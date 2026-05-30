@@ -1,23 +1,39 @@
 <template>
   <RouterView v-if="$route.meta.public" />
-  <div v-else class="workspace-shell">
+  <div v-else class="workspace-shell precision-shell">
+    <header class="mobile-shell-header">
+      <RouterLink class="mobile-brand" to="/">
+        <span>SD</span>
+        <strong>Kanban</strong>
+      </RouterLink>
+      <button type="button" class="notification-button compact" aria-label="通知" @click="openNotifications">
+        通知
+        <span v-if="notifications.unreadCount > 0">{{ notifications.unreadCount }}</span>
+      </button>
+    </header>
     <aside class="sidebar">
       <RouterLink class="brand-mark" to="/">
         <span>SD</span>
-        <strong>Kanban</strong>
+        <span class="brand-copy">
+          <strong>Kanban</strong>
+          <small class="brand-subtitle">敏捷交付工作台</small>
+        </span>
       </RouterLink>
       <nav class="primary-nav" aria-label="主导航">
         <RouterLink to="/">仪表盘</RouterLink>
         <RouterLink to="/projects">项目</RouterLink>
         <RouterLink to="/my-tasks">我的任务</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/users">用户管理</RouterLink>
       </nav>
       <div class="account-block">
-        <span>{{ auth.user?.nickname ?? auth.user?.account }}</span>
-        <button type="button" class="notification-button" aria-label="通知" @click="openNotifications">
-          通知
-          <span v-if="notifications.unreadCount > 0">{{ notifications.unreadCount }}</span>
-        </button>
-        <button type="button" @click="logout">退出</button>
+        <span class="account-name">{{ auth.user?.nickname ?? auth.user?.account }}</span>
+        <div class="account-actions">
+          <button type="button" class="notification-button" aria-label="通知" @click="openNotifications">
+            通知
+            <span v-if="notifications.unreadCount > 0">{{ notifications.unreadCount }}</span>
+          </button>
+          <button type="button" @click="logout">退出</button>
+        </div>
       </div>
     </aside>
     <RouterView />
@@ -55,9 +71,16 @@ function canUseNotifications() {
 
 onMounted(() => {
   if (canUseNotifications()) {
-    void notifications.loadUnreadCount()
+    void bootstrapShell()
   }
 })
+
+async function bootstrapShell() {
+  await auth.refreshCurrentUser()
+  if (canUseNotifications()) {
+    await notifications.loadUnreadCount()
+  }
+}
 
 async function openNotifications() {
   const requestId = openNotificationsRequestId.value + 1

@@ -9,6 +9,7 @@ import com.sdkanban.config.JwtService;
 import com.sdkanban.user.dto.UserSummary;
 import com.sdkanban.user.entity.User;
 import com.sdkanban.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,20 +21,26 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final boolean registrationEnabled;
 
     public AuthServiceImpl(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
-        JwtService jwtService
+        JwtService jwtService,
+        @Value("${app.auth.registration-enabled:false}") boolean registrationEnabled
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.registrationEnabled = registrationEnabled;
     }
 
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (!registrationEnabled) {
+            throw BusinessException.forbidden("REGISTRATION_DISABLED", "Public registration is disabled");
+        }
         String email = normalizeEmail(request.email());
         if (userRepository.existsByAccount(request.account())) {
             throw BusinessException.conflict("ACCOUNT_EXISTS", "Account already exists");

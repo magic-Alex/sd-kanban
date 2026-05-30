@@ -29,3 +29,8 @@ export async function postData<T, B>(path: string, body: B): Promise<T> {
   const response = await http.post<ApiResponse<T>>(path, body)
   return response.data.data
 }
+
+export async function patchData<T, B>(path: string, body: B): Promise<T> {
+  const response = await http.patch<ApiResponse<T>>(path, body)
+  return response.data.data
+}

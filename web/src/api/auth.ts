@@ -1,4 +1,4 @@
-import { postData } from './http'
+import { getData, postData } from './http'
 
 export interface LoginRequest {
   account: string
@@ -11,6 +11,7 @@ export interface UserSummary {
   nickname: string
   email: string | null
   avatarUrl: string | null
+  role?: string | null
 }
 
 export interface LoginResponse {
@@ -20,4 +21,8 @@ export interface LoginResponse {
 
 export function login(request: LoginRequest): Promise<LoginResponse> {
   return postData<LoginResponse, LoginRequest>('/auth/login', request)
+}
+
+export function fetchCurrentUser(): Promise<UserSummary> {
+  return getData<UserSummary>('/auth/me')
 }

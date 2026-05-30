@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../src/App.vue'
+import { fetchCurrentUser } from '../src/api/auth'
 import { fetchNotifications, fetchUnreadNotificationCount, markNotificationRead } from '../src/api/notifications'
 import { useAuthStore } from '../src/stores/auth'
 import { useNotificationsStore } from '../src/stores/notifications'
@@ -27,6 +28,11 @@ vi.mock('../src/api/notifications', () => ({
   markAllNotificationsRead: vi.fn(),
 }))
 
+vi.mock('../src/api/auth', () => ({
+  fetchCurrentUser: vi.fn(),
+  login: vi.fn(),
+}))
+
 function deferred<T>() {
   let resolve: (value: T) => void = () => undefined
   let reject: (error: Error) => void = () => undefined
@@ -37,10 +43,10 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function authenticateTestUser() {
+function authenticateTestUser(role = 'MEMBER') {
   const auth = useAuthStore()
   auth.token = 'jwt-token'
-  auth.user = { id: 1, account: 'alex', nickname: 'Alex' }
+  auth.user = { id: 1, account: 'alex', nickname: 'Alex', role }
 }
 
 function createTestRouter() {
@@ -52,6 +58,7 @@ function createTestRouter() {
       { path: '/projects', name: 'projects', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/projects/:projectId/board', name: 'project-board', component: { template: '<main />' }, meta: { requiresAuth: true } },
       { path: '/my-tasks', name: 'my-tasks', component: { template: '<main />' }, meta: { requiresAuth: true } },
+      { path: '/admin/users', name: 'admin-users', component: { template: '<main />' }, meta: { requiresAuth: true, requiresAdmin: true } },
     ],
   })
   testRouter.beforeEach((to) => {
@@ -65,6 +72,9 @@ function createTestRouter() {
     if (to.name === 'login' && auth.isAuthenticated) {
       return { name: 'dashboard' }
     }
+    if (to.meta.requiresAdmin && !auth.isAdmin) {
+      return { name: 'dashboard' }
+    }
     return true
   })
   return testRouter
@@ -73,6 +83,15 @@ function createTestRouter() {
 describe('app shell', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.mocked(fetchCurrentUser).mockReset()
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      id: 1,
+      account: 'alex',
+      nickname: 'Alex',
+      email: 'alex@sd-robot.com',
+      avatarUrl: null,
+      role: 'MEMBER',
+    })
     vi.mocked(fetchNotifications).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockReset()
     vi.mocked(fetchUnreadNotificationCount).mockResolvedValue({ count: 0 })
@@ -121,6 +140,36 @@ describe('app shell', () => {
     expect(wrapper.text()).toContain('项目')
     expect(wrapper.text()).toContain('我的任务')
     expect(wrapper.text()).toContain('退出')
+  })
+
+  it('shows user management navigation for administrators only', async () => {
+    localStorage.setItem('sd-kanban-token', 'jwt-token')
+    localStorage.setItem(
+      'sd-kanban-user',
+      JSON.stringify({ id: 1, account: 'sd-robot', nickname: '系统管理员', role: 'ADMIN' }),
+    )
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      id: 1,
+      account: 'sd-robot',
+      nickname: '系统管理员',
+      email: null,
+      avatarUrl: null,
+      role: 'ADMIN',
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    authenticateTestUser('ADMIN')
+    const router = createTestRouter()
+    await router.push('/')
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [pinia, router],
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('用户管理')
   })
 
   it('opens the notification panel from the authenticated shell', async () => {
@@ -235,7 +284,9 @@ describe('app shell', () => {
     await flushPromises()
 
     await wrapper.get('[aria-label="通知"]').trigger('click')
-    await wrapper.findAll('button')[1].trigger('click')
+    const logoutButton = wrapper.findAll('button').find((button) => button.text().includes('退出'))
+    expect(logoutButton?.exists()).toBe(true)
+    await logoutButton?.trigger('click')
     await flushPromises()
     pendingNotifications.resolve([])
     await flushPromises()

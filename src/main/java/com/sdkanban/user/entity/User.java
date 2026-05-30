@@ -36,6 +36,9 @@ public class User {
     @Column(nullable = false, length = 32)
     private String status = "ACTIVE";
 
+    @Column(nullable = false, length = 32)
+    private String role = "MEMBER";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -52,6 +55,11 @@ public class User {
         this.nickname = nickname;
         this.email = email;
         this.passwordHash = passwordHash;
+    }
+
+    public User(String account, String nickname, String email, String passwordHash, String role) {
+        this(account, nickname, email, passwordHash);
+        this.role = role;
     }
 
     public Long getId() {
@@ -80,5 +88,33 @@ public class User {
 
     public String getStatus() {
         return status;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public boolean isAdmin() {
+        return "ADMIN".equals(role);
+    }
+
+    public void activate() {
+        this.status = "ACTIVE";
+    }
+
+    public void changeStatus(String status) {
+        this.status = status;
+    }
+
+    public void promoteToAdmin() {
+        this.role = "ADMIN";
     }
 }

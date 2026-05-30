@@ -14,6 +14,14 @@ spring:
     enabled: ${FLYWAY_ENABLED:true}
 
 app:
+  auth:
+    registration-enabled: ${REGISTRATION_ENABLED:false}
+    default-admin:
+      enabled: ${DEFAULT_ADMIN_ENABLED:true}
+      account: ${DEFAULT_ADMIN_ACCOUNT:sd-robot}
+      password: ${DEFAULT_ADMIN_PASSWORD:1}
+      nickname: ${DEFAULT_ADMIN_NICKNAME:系统管理员}
+      email: ${DEFAULT_ADMIN_EMAIL:}
   jwt:
     secret: ${JWT_SECRET:sd-kanban-local-development-secret-change-before-production}
     expires-minutes: ${JWT_EXPIRES_MINUTES:720}

@@ -5,6 +5,7 @@ import MyTaskBoardView from '../views/MyTaskBoardView.vue'
 import ProjectBoardView from '../views/ProjectBoardView.vue'
 import ProjectDetailView from '../views/ProjectDetailView.vue'
 import ProjectListView from '../views/ProjectListView.vue'
+import UserAdminView from '../views/UserAdminView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
@@ -46,6 +47,12 @@ const router = createRouter({
       component: MyTaskBoardView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin/users',
+      name: 'admin-users',
+      component: UserAdminView,
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
 })
 
@@ -58,6 +65,9 @@ router.beforeEach((to) => {
     }
   }
   if (to.name === 'login' && auth.isAuthenticated) {
+    return { name: 'dashboard' }
+  }
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
     return { name: 'dashboard' }
   }
   return true

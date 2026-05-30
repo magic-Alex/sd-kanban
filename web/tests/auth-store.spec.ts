@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '../src/router'
-import { login as loginApi } from '../src/api/auth'
+import { fetchCurrentUser, login as loginApi } from '../src/api/auth'
 import { useAuthStore } from '../src/stores/auth'
 
 vi.mock('../src/api/auth', () => ({
   login: vi.fn(),
+  fetchCurrentUser: vi.fn(),
 }))
 
 describe('auth store', () => {
@@ -13,6 +14,7 @@ describe('auth store', () => {
     localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(loginApi).mockReset()
+    vi.mocked(fetchCurrentUser).mockReset()
   })
 
   it('saves token after login', async () => {
@@ -24,6 +26,7 @@ describe('auth store', () => {
         nickname: 'Alex',
         email: 'alex@sd-robot.com',
         avatarUrl: null,
+        role: 'MEMBER',
       },
     })
 
@@ -46,6 +49,29 @@ describe('auth store', () => {
     expect(auth.user).toBeNull()
     expect(localStorage.getItem('sd-kanban-token')).toBeNull()
     expect(localStorage.getItem('sd-kanban-user')).toBeNull()
+  })
+
+  it('refreshes the cached current user from the server', async () => {
+    localStorage.setItem('sd-kanban-token', 'jwt-token')
+    localStorage.setItem(
+      'sd-kanban-user',
+      JSON.stringify({ id: 1, account: 'admin', nickname: '???', role: 'ADMIN' }),
+    )
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      id: 1,
+      account: 'admin',
+      nickname: '管理员',
+      email: 'admin@sd-kanban.local',
+      avatarUrl: null,
+      role: 'ADMIN',
+    })
+
+    const auth = useAuthStore()
+    await auth.refreshCurrentUser()
+
+    expect(fetchCurrentUser).toHaveBeenCalledTimes(1)
+    expect(auth.user?.nickname).toBe('管理员')
+    expect(JSON.parse(localStorage.getItem('sd-kanban-user') ?? '{}').nickname).toBe('管理员')
   })
 })
 

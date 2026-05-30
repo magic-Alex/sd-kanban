@@ -42,7 +42,7 @@ class SchemaMigrationTest {
 
     @Test
     void coreTablesExposeDesignSpecColumns() {
-        assertColumns("users", "account", "nickname", "email", "avatar_url", "password_hash", "status", "created_at", "updated_at");
+        assertColumns("users", "account", "nickname", "email", "avatar_url", "password_hash", "status", "role", "created_at", "updated_at");
         assertColumns("projects", "name", "description", "owner_id", "creator_id", "status", "created_at", "updated_at");
         assertColumns("board_columns", "project_id", "name", "color", "sort_order", "is_done", "created_at", "updated_at");
         assertColumns(

@@ -8,6 +8,8 @@ SD Kanban is a Spring Boot 3 + Vue 3 agile kanban application for project owners
 - Spring Boot backend port: `8101`
 - MySQL database: `sd_kanban`
 - Local credentials: `root` / `root`
+- Default application administrator: `sd-robot` / `1`
+- Public self-registration is disabled by default; administrators create users from the user management page.
 
 Run backend tests with the project Maven repository and Java 17:
 
@@ -36,9 +38,15 @@ Runtime configuration can be supplied through environment variables. Local defau
 | `DB_CREATE_DATABASE_IF_NOT_EXIST` | `true` | Local database auto-create switch |
 | `JPA_DDL_AUTO` | `validate` | Hibernate schema behavior |
 | `FLYWAY_ENABLED` | `true` | Flyway migration switch |
+| `REGISTRATION_ENABLED` | `false` | Public `/api/auth/register` switch; keep disabled for normal use |
+| `DEFAULT_ADMIN_ENABLED` | `true` | Automatically ensure a default admin account exists |
+| `DEFAULT_ADMIN_ACCOUNT` | `sd-robot` | Default admin login account |
+| `DEFAULT_ADMIN_PASSWORD` | `1` | Default admin initial password |
+| `DEFAULT_ADMIN_NICKNAME` | `系统管理员` | Default admin display name |
+| `DEFAULT_ADMIN_EMAIL` | empty | Optional default admin email |
 | `JWT_SECRET` | Local development secret | JWT signing secret; use a long random value in production |
 | `JWT_EXPIRES_MINUTES` | `720` | JWT lifetime in minutes |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:8102` | Comma-separated browser origins allowed to call `/api/**` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:8102,http://127.0.0.1:8102` | Comma-separated browser origins allowed to call `/api/**` |
 | `MAVEN_REPO_LOCAL` | `D:\root\dev\Java\maven\repository` | Maven local repository used by scripts |
 
 ## Frontend
