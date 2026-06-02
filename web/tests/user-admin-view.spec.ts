@@ -13,8 +13,8 @@ vi.mock('../src/api/users', () => ({
 const users = [
   {
     id: 1,
-    account: 'sd-robot',
-    nickname: '系统管理员',
+    account: 'admin-user',
+    nickname: '管理员',
     email: null,
     avatarUrl: null,
     status: 'ACTIVE',
@@ -58,7 +58,7 @@ describe('UserAdminView', () => {
     await flushPromises()
 
     expect(fetchUsers).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('系统管理员')
+    expect(wrapper.text()).toContain('管理员')
 
     await wrapper.get('[aria-label="用户账号"]').setValue('developer')
     await wrapper.get('[aria-label="用户昵称"]').setValue('开发人员')
@@ -84,10 +84,10 @@ describe('UserAdminView', () => {
     })
     await flushPromises()
 
-    await wrapper.get('[aria-label="停用 sd-robot"]').trigger('click')
+    await wrapper.get('[aria-label="停用 admin-user"]').trigger('click')
     await flushPromises()
 
-    expect(updateUserStatus).toHaveBeenCalledWith('sd-robot', 'DISABLED')
+    expect(updateUserStatus).toHaveBeenCalledWith('admin-user', 'DISABLED')
     expect(wrapper.text()).toContain('已停用')
   })
 })

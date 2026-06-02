@@ -10,8 +10,8 @@ import { useAuthStore } from '../src/stores/auth'
 vi.mock('../src/api/auth', () => ({
   fetchCurrentUser: vi.fn(async () => ({
     id: 1,
-    account: 'sd-robot',
-    nickname: '系统管理员',
+    account: 'admin-user',
+    nickname: '管理员',
     email: null,
     avatarUrl: null,
     role: 'ADMIN',
@@ -58,8 +58,8 @@ function authenticateAdmin() {
   auth.token = 'jwt-token'
   auth.user = {
     id: 1,
-    account: 'sd-robot',
-    nickname: '系统管理员',
+    account: 'admin-user',
+    nickname: '管理员',
     email: null,
     avatarUrl: null,
     role: 'ADMIN',
@@ -73,7 +73,7 @@ describe('precision workspace redesign', () => {
     setActivePinia(createPinia())
   })
 
-  it('renders the login page as a product workspace entry with the default admin hint', () => {
+  it('renders the login page as a product workspace entry without bundled credentials', () => {
     const wrapper = mount(LoginView, {
       global: {
         plugins: [createPinia(), createTestRouter()],
@@ -81,7 +81,7 @@ describe('precision workspace redesign', () => {
     })
 
     expect(wrapper.find('.login-visual-panel').exists()).toBe(true)
-    expect(wrapper.find('.login-credential-hint').text()).toContain('默认管理员：sd-robot / 1')
+    expect(wrapper.find('.login-credential-hint').exists()).toBe(false)
     expect(wrapper.text()).toContain('敏捷交付工作台')
   })
 
@@ -102,7 +102,7 @@ describe('precision workspace redesign', () => {
     expect(wrapper.find('.workspace-shell.precision-shell').exists()).toBe(true)
     expect(wrapper.find('.brand-subtitle').text()).toBe('敏捷交付工作台')
     expect(wrapper.find('.mobile-shell-header').exists()).toBe(true)
-    expect(wrapper.text()).toContain('系统管理员')
+    expect(wrapper.text()).toContain('管理员')
   })
 
   it('gives task cards dedicated readable metadata regions', () => {

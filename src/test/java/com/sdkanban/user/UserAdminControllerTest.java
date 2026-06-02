@@ -51,7 +51,7 @@ class UserAdminControllerTest {
 
     @Test
     void adminCreatesUserAndCanListUsers() throws Exception {
-        String adminToken = seedUserAndLogin("sd-robot", "系统管理员", "ADMIN");
+        String adminToken = seedUserAndLogin("admin-user", "管理员", "ADMIN");
 
         mockMvc.perform(post("/api/admin/users")
                 .header("Authorization", "Bearer " + adminToken)
@@ -77,7 +77,7 @@ class UserAdminControllerTest {
                 .header("Authorization", "Bearer " + adminToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data[?(@.account == 'sd-robot')].role").value("ADMIN"))
+            .andExpect(jsonPath("$.data[?(@.account == 'admin-user')].role").value("ADMIN"))
             .andExpect(jsonPath("$.data[?(@.account == 'developer')].status").value("ACTIVE"));
 
         String hash = jdbcTemplate.queryForObject(
@@ -112,7 +112,7 @@ class UserAdminControllerTest {
 
     @Test
     void adminCanDisableAndEnableUsers() throws Exception {
-        String adminToken = seedUserAndLogin("sd-robot", "系统管理员", "ADMIN");
+        String adminToken = seedUserAndLogin("admin-user", "管理员", "ADMIN");
         seedUser("developer", "Developer", "MEMBER");
 
         mockMvc.perform(patch("/api/admin/users/{account}/status", "developer")

@@ -66,7 +66,6 @@ async function submit() {
         <button type="submit" :disabled="auth.loading">
           {{ auth.loading ? '登录中' : '登录' }}
         </button>
-        <p class="login-credential-hint">默认管理员：sd-robot / 1</p>
       </form>
     </section>
   </main>

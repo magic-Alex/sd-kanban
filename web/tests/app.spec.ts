@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -89,7 +89,7 @@ describe('app shell', () => {
       id: 1,
       account: 'alex',
       nickname: 'Alex',
-      email: 'alex@sd-robot.com',
+      email: 'alex@example.com',
       avatarUrl: null,
       role: 'MEMBER',
     })
@@ -147,11 +147,11 @@ describe('app shell', () => {
     localStorage.setItem('sd-kanban-token', 'jwt-token')
     localStorage.setItem(
       'sd-kanban-user',
-      JSON.stringify({ id: 1, account: 'sd-robot', nickname: '系统管理员', role: 'ADMIN' }),
+      JSON.stringify({ id: 1, account: 'admin-user', nickname: '系统管理员', role: 'ADMIN' }),
     )
     vi.mocked(fetchCurrentUser).mockResolvedValue({
       id: 1,
-      account: 'sd-robot',
+      account: 'admin-user',
       nickname: '系统管理员',
       email: null,
       avatarUrl: null,
@@ -177,11 +177,11 @@ describe('app shell', () => {
     localStorage.setItem('sd-kanban-token', 'jwt-token')
     localStorage.setItem(
       'sd-kanban-user',
-      JSON.stringify({ id: 1, account: 'sd-robot', nickname: '系统管理员', role: 'ADMIN' }),
+      JSON.stringify({ id: 1, account: 'admin-user', nickname: '系统管理员', role: 'ADMIN' }),
     )
     vi.mocked(fetchCurrentUser).mockResolvedValue({
       id: 1,
-      account: 'sd-robot',
+      account: 'admin-user',
       nickname: '系统管理员',
       email: null,
       avatarUrl: null,
@@ -208,7 +208,7 @@ describe('app shell', () => {
       id: 1,
       account: 'alex',
       nickname: 'Alex',
-      email: 'alex@sd-robot.com',
+      email: 'alex@example.com',
       avatarUrl: null,
       role: 'MEMBER',
     })

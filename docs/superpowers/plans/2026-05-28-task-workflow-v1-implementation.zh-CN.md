@@ -1,4 +1,4 @@
-# Task Workflow V1 Implementation Plan
+﻿# Task Workflow V1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -948,7 +948,7 @@ it('saves edits and sends clearFields for emptied nullable fields', async () => 
         sprintId: null,
         columnId: 1,
         assignee: { id: 3, account: 'member', nickname: 'Member', email: null, avatarUrl: null },
-        creator: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@sd-robot.com', avatarUrl: null },
+        creator: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@example.com', avatarUrl: null },
         title: 'Build board',
         description: 'Remove this',
         taskType: 'STORY',
@@ -1039,7 +1039,7 @@ function taskFixture() {
     sprintId: null,
     columnId: 1,
     assignee: null,
-    creator: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@sd-robot.com', avatarUrl: null },
+    creator: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@example.com', avatarUrl: null },
     title: 'Build board',
     description: null,
     taskType: 'STORY',

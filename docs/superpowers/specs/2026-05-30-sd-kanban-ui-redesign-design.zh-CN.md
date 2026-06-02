@@ -42,7 +42,7 @@
 
 - `web/src/styles/main.css`：重建全局设计 token、布局、组件、响应式。
 - `web/src/App.vue`：修复中文文案，优化应用壳导航和账号区。
-- `web/src/views/LoginView.vue`：重做登录页结构与默认账号提示。
+- `web/src/views/LoginView.vue`：重做登录页结构与说明文案。
 - `web/src/views/DashboardView.vue`：修复中文文案，强化指标和趋势布局。
 - `web/src/views/ProjectBoardView.vue`：修复中文文案，优化页头、视图切换、创建任务入口。
 - `web/src/views/MyTaskBoardView.vue`：修复中文文案，优化个人任务看板。

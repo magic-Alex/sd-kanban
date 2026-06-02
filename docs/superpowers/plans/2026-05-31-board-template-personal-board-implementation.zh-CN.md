@@ -2489,7 +2489,7 @@ Add these points:
 
 ```markdown
 - Default ports: backend `8101`, frontend `8102`.
-- Default admin account: `sd-robot / 1`.
+- Initial administrator provisioning is handled outside the application package.
 - Projects require a unique project code and project color.
 - All projects use the global board template managed in System Settings.
 - Personal task board shows only tasks assigned to the current user and supports dragging cards between global template statuses.
@@ -2541,7 +2541,7 @@ Open `http://127.0.0.1:8102`.
 
 Verify:
 
-- Login with `sd-robot / 1`.
+- Login with an administrator account created by the deployment or database bootstrap process.
 - Admin can open 系统设置 -> 看板模板.
 - Default template labels show `待办（Backlog）`, `就绪（Ready）`, `进行中（In Progress）`, `测试（Testing）`, `完成（Done）`.
 - Create a project with code `SD-DEMO` and a color.
@@ -2605,4 +2605,3 @@ This plan uses concrete file paths, request/response shapes, test names, command
 - Backend uses `templateKey`, `projectCode`, and `projectColor`.
 - Frontend mirrors these names in `Project`, `TaskCard`, `BoardColumn`, and `MyTaskBoardGroup`.
 - Personal-board move API consistently uses `targetTemplateKey` and `sortOrder`.
-

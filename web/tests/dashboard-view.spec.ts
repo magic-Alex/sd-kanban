@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import DashboardView from '../src/views/DashboardView.vue'
@@ -16,7 +16,7 @@ vi.mock('../src/api/dashboard', () => ({
         projectId: 7,
         projectName: 'Delivery',
         taskTitle: 'Build dashboard',
-        actor: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@sd-robot.com', avatarUrl: null },
+        actor: { id: 1, account: 'alex', nickname: 'Alex', email: 'alex@example.com', avatarUrl: null },
         actionType: 'TASK_UPDATED',
         fieldName: 'priority',
         oldValue: 'MEDIUM',

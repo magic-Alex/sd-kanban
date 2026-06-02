@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+﻿import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick, reactive } from 'vue'
 import TaskDrawer from '../src/components/task/TaskDrawer.vue'
@@ -8,7 +8,7 @@ function userFixture(overrides = {}) {
     id: 1,
     account: 'alex',
     nickname: 'Alex',
-    email: 'alex@sd-robot.com',
+    email: 'alex@example.com',
     avatarUrl: null,
     ...overrides,
   }
@@ -64,7 +64,7 @@ function drawerProps(overrides = {}) {
     checklistItems: [],
     members: [
       {
-        user: userFixture({ id: 3, account: 'mei', nickname: 'Mei', email: 'mei@sd-robot.com' }),
+        user: userFixture({ id: 3, account: 'mei', nickname: 'Mei', email: 'mei@example.com' }),
         role: 'member',
         joinedAt: '2026-05-21T09:00:00',
       },
@@ -372,7 +372,7 @@ describe('TaskDrawer', () => {
       attachTo: document.body,
       props: drawerProps({
         task: taskFixture({
-          assignee: userFixture({ id: 3, account: 'mei', nickname: 'Mei', email: 'mei@sd-robot.com' }),
+          assignee: userFixture({ id: 3, account: 'mei', nickname: 'Mei', email: 'mei@example.com' }),
           dueDate: '2026-06-01',
         }),
         saveTask,

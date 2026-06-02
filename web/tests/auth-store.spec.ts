@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '../src/router'
 import { fetchCurrentUser, login as loginApi } from '../src/api/auth'
@@ -24,7 +24,7 @@ describe('auth store', () => {
         id: 1,
         account: 'alex',
         nickname: 'Alex',
-        email: 'alex@sd-robot.com',
+        email: 'alex@example.com',
         avatarUrl: null,
         role: 'MEMBER',
       },
